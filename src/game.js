@@ -18,7 +18,7 @@ export const STAGES = [
   { id: '1-2', name: 'とりさん はこんで', height: 3000, gap: [160, 210], water: 32, fruits: 9, gimmick: 'bird', seed: 23 },
   { id: '1-3', name: 'ポキッと えだ', height: 3200, gap: [165, 215], water: 38, fruits: 10, gimmick: 'thin', seed: 37 },
   { id: '1-4', name: 'ながい つる', height: 3400, gap: [170, 220], water: 42, fruits: 10, gimmick: 'vine', seed: 41 },
-  { id: '1-5', name: 'ジャングルの てっぺん', height: 4200, gap: [170, 225], water: 48, fruits: 12, gimmick: 'mix', seed: 59 },
+  { id: '1-5', name: 'ジャングルの てっぺん', height: 4200, gap: [160, 210], water: 43, fruits: 12, gimmick: 'mix', seed: 59 },
 ];
 
 export function rng(seed) {
@@ -92,7 +92,7 @@ export function buildLevel(stageIndex) {
     if (segment > 3) {
       if ((g === 'bird' || g === 'mix') && segment % (g === 'bird' ? 5 : 7) === 0) special = 'bird';
       else if ((g === 'vine' || g === 'mix') && segment % (g === 'vine' ? 4 : 6) === 2) special = 'vine';
-      else if ((g === 'thin' || g === 'mix') && R() < (g === 'thin' ? 0.38 : 0.3)) kind = 'thin';
+      else if ((g === 'thin' || g === 'mix') && R() < (g === 'thin' ? 0.38 : 0.2)) kind = 'thin';
       else if (g === 'mix' && segment % 9 === 5) special = 'leaf';
     }
     if (special === 'bird') {

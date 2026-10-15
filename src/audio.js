@@ -8,8 +8,8 @@ export function unlockAudio() {
     if (!AC) return;
     ac = new AC();
     master = ac.createGain(); master.gain.value = 0.8; master.connect(ac.destination);
-    sfxBus = ac.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
-    musicBus = ac.createGain(); musicBus.gain.value = 0.32; musicBus.connect(master);
+    sfxBus = ac.createGain(); sfxBus.gain.value = sfxOn ? 0.9 : 0; sfxBus.connect(master);
+    musicBus = ac.createGain(); musicBus.gain.value = musicOn ? 0.32 : 0; musicBus.connect(master);
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.0, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;

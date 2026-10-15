@@ -32,7 +32,7 @@ const $ = (id) => document.getElementById(id);
 const screens = ['title', 'map', 'hud', 'result', 'village', 'shop', 'pause'];
 function show(...ids) { for (const s of screens) $(s).classList.toggle('hidden', !ids.includes(s)); }
 
-let demoBot = null, autoBot = null;
+let demoBot = null, autoBot = null, evCursor = 0;
 const params = new URLSearchParams(location.search);
 let world = null, mode = 'title', stageIndex = 0, acc = 0, last = performance.now(), visT = 0, resultShown = false, tutorialStep = 0;
 
@@ -42,7 +42,7 @@ function startStage(i) {
   stageIndex = i;
   demoBot = null;
   world = createWorld(i); decorate(world);
-  R.reset(); acc = 0; resultShown = false;
+  R.reset(); acc = 0; resultShown = false; evCursor = 0;
   tutorialStep = i === 0 && !save.tutorialDone ? 1 : 0;
   mode = 'play';
   show('hud');
@@ -75,7 +75,8 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 // 画面が隠れたら一時停止
 document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'play') pause(); });
 
-function pause() { if (mode !== 'play') return; mode = 'pause'; activePointer = null; if (world) lift(world); show('hud', 'pause'); }
+// 一時停止: 指の状態だけ解除し、枝や鳥につかまったままにする (手を離させない)
+function pause() { if (mode !== 'play') return; mode = 'pause'; activePointer = null; if (world) world.holding = false; show('hud', 'pause'); }
 $('pausebtn').addEventListener('click', () => { unlockAudio(); sfx.tap(); pause(); });
 $('resume').addEventListener('click', () => { sfx.tap(); mode = 'play'; last = performance.now(); show('hud'); });
 $('quit').addEventListener('click', () => { sfx.tap(); openMap(); });
@@ -253,17 +254,18 @@ function frame(now) {
     acc += dt;
     let n = 0;
     while (acc >= DT && n < 12) {
-      const before = world.events.length;
       if (autoBot) autoBot.tick(world);
       step(world);
       if (autoBot) autoBot.after(world);
       acc -= DT; n++;
-      if (world.events.length > before) {
-        const evs = world.events.slice(before);
-        R.onEvents(world, evs); playEvents(evs);
-      }
     }
-    if (world.events.length > 400) world.events.splice(0, world.events.length - 200);
+    // 入力 (押す・離す) で起きた出来事も含め、まだ知らせていない分をまとめて音と演出へ
+    if (world.events.length > evCursor) {
+      const evs = world.events.slice(evCursor);
+      evCursor = world.events.length;
+      R.onEvents(world, evs); playEvents(evs);
+    }
+    if (world.events.length > 400) { const cut = world.events.length - 200; world.events.splice(0, cut); evCursor -= cut; }
     updateHud();
     tutorial();
     const gap = world.water - (world.m.y + BODY);
