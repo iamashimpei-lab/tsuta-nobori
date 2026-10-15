@@ -20,6 +20,11 @@ function mixHex(c1, c2, t) {
 }
 const easeOutBack = t => 1 + 2.7 * Math.pow(t - 1, 3) + 1.7 * Math.pow(t - 1, 2);
 
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
   const R = { scale: 1, dpr: 1, viewH: 900, camY: 0, camInit: false, shake: 0, particles: [], texts: [], flash: 0, squash: 1, stretch: 0, ringT: -9, hint: null };
@@ -279,7 +284,7 @@ export function createRenderer(canvas) {
     ctx.restore();
     const bob = Math.sin(t * 4) * 4;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.beginPath(); ctx.roundRect(x - 58, y - 92 + bob, 116, 38, 14); ctx.fill();
+    ctx.beginPath(); roundRectPath(ctx, x - 58, y - 92 + bob, 116, 38, 14); ctx.fill();
     ctx.beginPath(); ctx.moveTo(x - 6, y - 56 + bob); ctx.lineTo(x + 6, y - 56 + bob); ctx.lineTo(x, y - 44 + bob); ctx.fill();
     txt('たすけて〜', x, y - 73 + bob, 20, '#7a3b10', null, '800');
   }
@@ -691,7 +696,7 @@ export function createRenderer(canvas) {
         ctx.fillStyle = '#7d5230'; ctx.fillRect(x - 60, gy - 100, 120, 14);
         ctx.fillStyle = kind === 'hut' ? '#d9b25a' : '#e0905a';
         ctx.beginPath(); ctx.moveTo(x - 82, gy - 96); ctx.lineTo(x, gy - 170); ctx.lineTo(x + 82, gy - 96); ctx.fill();
-        ctx.fillStyle = '#4a2f3a'; ctx.beginPath(); ctx.roundRect(x - 18, gy - 56, 36, 56, 14); ctx.fill();
+        ctx.fillStyle = '#4a2f3a'; ctx.beginPath(); roundRectPath(ctx, x - 18, gy - 56, 36, 56, 14); ctx.fill();
       } else if (kind === 'swing') {
         ctx.strokeStyle = '#7d5230'; ctx.lineWidth = 10;
         ctx.beginPath(); ctx.moveTo(x - 80, gy); ctx.lineTo(x - 60, gy - 180); ctx.lineTo(x + 60, gy - 180); ctx.lineTo(x + 80, gy); ctx.stroke();

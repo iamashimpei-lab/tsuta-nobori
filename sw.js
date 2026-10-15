@@ -1,8 +1,9 @@
 // オフライン用: 最初に開いた時に全部のファイルを保存し、以後はネットがなくても開ける。
 // 中身を直したら VERSION を上げる (古い保存を捨てて取り直す)
-const VERSION = 'tsuta-v2';
+const VERSION = 'tsuta-202610151853';
 const ASSETS = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.png',
-  'src/main.js', 'src/game.js', 'src/render.js', 'src/audio.js', 'src/autoplay.js'];
+  'src/main.js', 'src/game.js', 'src/render.js', 'src/audio.js', 'src/autoplay.js', 'src/version.js',
+  'assets/bgm-play.m4a', 'assets/bgm-home.m4a'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

@@ -9,7 +9,7 @@ export function unlockAudio() {
     ac = new AC();
     master = ac.createGain(); master.gain.value = 0.8; master.connect(ac.destination);
     sfxBus = ac.createGain(); sfxBus.gain.value = sfxOn ? 0.9 : 0; sfxBus.connect(master);
-    musicBus = ac.createGain(); musicBus.gain.value = musicOn ? 0.32 : 0; musicBus.connect(master);
+    musicBus = ac.createGain(); musicBus.gain.value = musicOn ? 0.55 : 0; musicBus.connect(master);
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.0, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -19,7 +19,7 @@ export function unlockAudio() {
 
 export function setSound(music, sfx) {
   musicOn = music; sfxOn = sfx;
-  if (musicBus) musicBus.gain.value = music ? 0.32 : 0;
+  if (musicBus) musicBus.gain.value = music ? 0.55 : 0;
   if (sfxBus) sfxBus.gain.value = sfx ? 0.9 : 0;
 }
 
@@ -90,7 +90,7 @@ export const sfx = {
   fail() { [392, 349, 311, 262].forEach((f, k) => tone(f, 0.35, { type: 'triangle', gain: 0.15, at: k * 0.2 })); },
   star(k) { tone(880 * Math.pow(1.26, k), 0.3, { type: 'triangle', gain: 0.18 }); tone(1760 * Math.pow(1.26, k), 0.3, { gain: 0.06 }); },
   tap() { tone(vary(700, 30), 0.06, { type: 'triangle', gain: 0.12 }); },
-  alarm() { tone(880, 0.1, { type: 'square', gain: 0.05 }); },
+  alarm() { tone(880, 0.09, { type: 'square', gain: 0.06 }); tone(660, 0.09, { type: 'square', gain: 0.05, at: 0.11 }); },
 };
 
 // ---- 音楽: 太鼓とマリンバ。水が近いと低い音が加わる ----
@@ -115,10 +115,43 @@ function scheduleStep(t) {
   }
   if (pos % 8 === 0) tone(BASS[(stepIdx / 8 | 0) % 4] / 2, 0.9, { type: 'triangle', gain: 0.22, at, bus: b });
   if (tension > 0.3 && pos % 4 === 0) tone(146.8, 0.3, { type: 'sawtooth', gain: 0.05 * tension, at, bus: b });
-  if (tension > 0.6 && pos % 2 === 1) tone(880, 0.1, { type: 'square', gain: 0.05, at });
 }
 
-export function startMusic() {
+// ---- 曲 (Gemini の Lyria で作ったもの) をつなぎ目なく繰り返す。読めない時は合成の曲 ----
+const LOOP_HEAD = 0.1;
+const LOOPS = { play: 'assets/bgm-play.m4a', home: 'assets/bgm-home.m4a' };
+const buffers = {};
+let curName = null, curSrc = null, curGain = null, wantName = null;
+
+function loadTrack(name) {
+  if (!buffers[name]) {
+    buffers[name] = fetch(LOOPS[name])
+      .then((r) => { if (!r.ok) throw new Error('bgm ' + r.status); return r.arrayBuffer(); })
+      .then((ab) => new Promise((ok, ng) => ac.decodeAudioData(ab, ok, ng)))
+      .catch((e) => { buffers[name] = null; throw e; });
+  }
+  return buffers[name];
+}
+
+export function startMusic(name = 'home') {
+  if (!ac) return;
+  wantName = name;
+  if (curName === name) return;
+  loadTrack(name).then((buf) => {
+    if (wantName !== name || curName === name) return;
+    const t = ac.currentTime;
+    if (curSrc) { const g = curGain, s0 = curSrc; g.gain.setTargetAtTime(0, t, 0.25); setTimeout(() => { try { s0.stop(); } catch { /* 止まっている */ } }, 1500); }
+    stopSynth();
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    src.loopStart = LOOP_HEAD; src.loopEnd = buf.duration - 0.6 + LOOP_HEAD;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(name === 'play' ? 0.95 : 0.8, t + 0.8);
+    src.connect(g); g.connect(musicBus);
+    src.start(t, LOOP_HEAD);
+    curSrc = src; curGain = g; curName = name;
+  }).catch(() => startSynth());
+}
+
+function startSynth() {
   if (!ac || musicTimer) return;
   const stepDur = 60 / 118 / 4;
   nextNote = ac.currentTime + 0.1;
@@ -127,4 +160,5 @@ export function startMusic() {
   }, 30);
 }
 
-export function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }
+function stopSynth() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }
+export function stopMusic() { stopSynth(); }

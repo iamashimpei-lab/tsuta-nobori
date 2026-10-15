@@ -3,6 +3,7 @@ import { createWorld, step, press, lift, stars, STAGES, DT, BODY } from './game.
 import { createRenderer } from './render.js';
 import { unlockAudio, sfx, startMusic, setTension, setSound } from './audio.js';
 import { createBot } from './autoplay.js';
+import { LAST_UPDATE } from './version.js';
 
 const SAVE_KEY = 'tsuta-nobori-save-v1'; // gitleaks:allow (保存場所の名前で、秘密ではない)
 const HATS = [
@@ -32,7 +33,7 @@ const $ = (id) => document.getElementById(id);
 const screens = ['title', 'map', 'hud', 'result', 'village', 'shop', 'pause'];
 function show(...ids) { for (const s of screens) $(s).classList.toggle('hidden', !ids.includes(s)); }
 
-let demoBot = null, autoBot = null, evCursor = 0;
+let demoBot = null, autoBot = null, evCursor = 0, lastAlarm = 0;
 const params = new URLSearchParams(location.search);
 let world = null, mode = 'title', stageIndex = 0, acc = 0, last = performance.now(), visT = 0, resultShown = false, tutorialStep = 0;
 
@@ -42,9 +43,10 @@ function startStage(i) {
   stageIndex = i;
   demoBot = null;
   world = createWorld(i); decorate(world);
-  R.reset(); acc = 0; resultShown = false; evCursor = 0;
+  R.reset(); acc = 0; resultShown = false; evCursor = 0; activePointer = null;
   tutorialStep = i === 0 && !save.tutorialDone ? 1 : 0;
   mode = 'play';
+  startMusic('play');
   show('hud');
   $('stagename').textContent = `${STAGES[i].id}  ${STAGES[i].name}`;
   $('stagename').classList.remove('fade'); void $('stagename').offsetWidth; $('stagename').classList.add('fade');
@@ -54,8 +56,10 @@ function startStage(i) {
 // ---- 入力: どこを押しても良い。押した場所へロープ、離すと飛ぶ ----
 let activePointer = null;
 canvas.addEventListener('pointerdown', (e) => {
-  unlockAudio(); startMusic();
-  if (mode !== 'play' || activePointer !== null) return;
+  unlockAudio(); startMusic(mode === 'play' ? 'play' : 'home');
+  if (mode !== 'play') return;
+  // 前の指の「離した」が届かなかった時は、ここで離したことにしてから新しい指を受ける
+  if (activePointer !== null && activePointer !== e.pointerId) lift(world);
   activePointer = e.pointerId;
   try { canvas.setPointerCapture(e.pointerId); } catch { /* 指がもう離れている時は無視 */ }
   const p = R.toWorld(e.clientX, e.clientY);
@@ -69,8 +73,10 @@ const up = (e) => {
   activePointer = null;
   if (mode === 'play') lift(world);
 };
-canvas.addEventListener('pointerup', up);
-canvas.addEventListener('pointercancel', up);
+// 画面のどこで離しても受け取る (canvas の外の表示の上で離した時も)
+window.addEventListener('pointerup', up);
+window.addEventListener('pointercancel', up);
+window.addEventListener('blur', () => { if (activePointer !== null) { activePointer = null; if (mode === 'play') lift(world); } });
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 // 画面が隠れたら一時停止
 document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'play') pause(); });
@@ -90,11 +96,11 @@ function newDemo() {
   demoBot = createBot(Math.floor(Math.random() * 1e6), 0.05);
 }
 function openTitle() {
-  mode = 'title'; show('title');
+  mode = 'title'; show('title'); startMusic('home'); showFooter();
   newDemo();
 }
 function openMap() {
-  mode = 'map'; show('map');
+  mode = 'map'; show('map'); startMusic('home');
   if (!world || !demoBot) newDemo();
   const list = $('stages'); list.innerHTML = '';
   STAGES.forEach((st, i) => {
@@ -106,7 +112,7 @@ function openMap() {
       <span class="st">${[0, 1, 2].map(k => `<i class="${got[k] ? 'on' : ''}">★</i>`).join('')}</span>
       ${save.babies[st.id] ? '<span class="bb">子ザル</span>' : ''}`;
     b.disabled = !unlocked;
-    b.addEventListener('click', () => { unlockAudio(); startMusic(); sfx.tap(); startStage(i); });
+    b.addEventListener('click', () => { unlockAudio(); sfx.tap(); startStage(i); });
     list.appendChild(b);
   });
   $('bank').textContent = save.bank;
@@ -144,7 +150,7 @@ function renderShop() {
 }
 
 for (const [id, fn] of [['play', openMap], ['tovillage', openVillage], ['toshop', openShop], ['mapback', openTitle], ['villageback', openTitle], ['shopback', openTitle], ['mapvillage', openVillage]]) {
-  $(id).addEventListener('click', () => { unlockAudio(); startMusic(); sfx.tap(); fn(); });
+  $(id).addEventListener('click', () => { unlockAudio(); startMusic('home'); sfx.tap(); fn(); });
 }
 $('soundbtn').addEventListener('click', () => {
   unlockAudio();
@@ -156,7 +162,7 @@ $('soundbtn').textContent = save.music ? 'おと：あり' : 'おと：なし';
 // ---- 結果 ----
 function showResult() {
   resultShown = true;
-  mode = 'result';
+  mode = 'result'; activePointer = null;
   const w = world, st = STAGES[stageIndex];
   show('hud', 'result');
   const clear = w.state === 'clear';
@@ -248,6 +254,25 @@ function playEvents(evs) {
 }
 
 function frame(now) {
+  requestAnimationFrame(frame);
+  try { frameBody(now); } catch (err) { reportError(err); }
+}
+
+let lastErr = 0;
+// ホームの一番下: 最終更新 (取り込めているかの目印) と、もしあれば最後のエラー
+function showFooter() {
+  let err = '';
+  try { err = localStorage.getItem('tsuta-last-error') || ''; } catch { /* 読めなくてもよい */ }
+  $('footer').textContent = `last update ${LAST_UPDATE}` + (err ? `　/　エラー: ${err}` : '');
+}
+function reportError(err) {
+  const msg = `${err && err.message || err}`.slice(0, 120);
+  try { localStorage.setItem('tsuta-last-error', `${new Date().toISOString().slice(0, 16)} ${msg}`); } catch { /* 保存できなくても続ける */ }
+  if (performance.now() - lastErr > 5000) { lastErr = performance.now(); console.error(err); }
+  showFooter();
+}
+
+function frameBody(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   visT += dt;
   if (mode === 'play' && world) {
@@ -269,7 +294,10 @@ function frame(now) {
     updateHud();
     tutorial();
     const gap = world.water - (world.m.y + BODY);
-    setTension(world.state === 'play' ? Math.max(0, Math.min(1, 1 - (gap - 60) / 260)) : 0);
+    const tension = world.state === 'play' ? Math.max(0, Math.min(1, 1 - (gap - 60) / 260)) : 0;
+    setTension(tension);
+    // 水が近い時の警告音 (曲とは別に鳴らす)
+    if (tension > 0.6 && now - lastAlarm > 420) { lastAlarm = now; sfx.alarm(); }
     if (world.state !== 'play' && !resultShown && world.t - (world.clearT ?? world.t) >= 0) {
       if (!world._endAt) world._endAt = world.t;
       // 終わった後も少し世界を動かして余韻を見せる
@@ -297,7 +325,6 @@ function frame(now) {
   } else if (world) {
     R.draw(world, dt, mode === 'play' || mode === 'pause' || mode === 'result' ? world.t : visT);
   }
-  requestAnimationFrame(frame);
 }
 
 function onResize() { R.resize(); $('rotate').classList.toggle('hidden', !(window.innerHeight > window.innerWidth * 1.9)); }
