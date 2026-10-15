@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="つたのぼり">
+<meta name="theme-color" content="#12302a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>つたのぼり</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<section id="title" class="screen">
+  <h1>つたのぼり</h1>
+  <p class="sub">みずが くるまえに、ジャングルの てっぺんへ</p>
+  <div class="buttons">
+    <button id="play" class="big">あそぶ</button>
+    <div class="row">
+      <button id="tovillage">サルの むら</button>
+      <button id="toshop">おみせ</button>
+    </div>
+    <button id="soundbtn" class="small">おと：あり</button>
+  </div>
+</section>
+
+<section id="map" class="screen hidden">
+  <h2>ワールド 1　ジャングル</h2>
+  <div id="stages"></div>
+  <div class="mapfoot">
+    <button id="mapback" class="small">もどる</button>
+    <span class="bankline">くだもの <b id="bank">0</b></span>
+    <button id="mapvillage" class="small">サルの むら</button>
+  </div>
+</section>
+
+<section id="hud" class="hidden">
+  <div class="hudleft">
+    <div id="hearts"></div>
+    <div id="height"></div>
+  </div>
+  <div class="hudright">
+    <div><span class="fruiticon"></span><span id="fruits"></span><span id="babyicon">子ザル</span></div>
+    <div id="watergap"></div>
+  </div>
+  <button id="pausebtn" aria-label="いちじていし">||</button>
+  <div id="stagename"></div>
+  <div id="tutorial" class="hidden"></div>
+</section>
+
+<section id="pause" class="screen dim hidden">
+  <h2>ひとやすみ</h2>
+  <div class="buttons">
+    <button id="resume" class="big">つづける</button>
+    <button id="retry2">さいしょから</button>
+    <button id="quit">マップへ</button>
+  </div>
+</section>
+
+<section id="result" class="screen dim hidden">
+  <h2 id="rtitle"></h2>
+  <div id="rstars"><i>★</i><i>★</i><i>★</i></div>
+  <div id="rdesc"></div>
+  <div class="buttons row">
+    <button id="rnext" class="big">つぎへ</button>
+    <button id="rretry">もういちど</button>
+    <button id="rmap">マップ</button>
+  </div>
+</section>
+
+<section id="village" class="screen hidden">
+  <h2>サルの むら</h2>
+  <p id="villagecount"></p>
+  <p class="sub">ステージで 子ザルを たすけると、むらが にぎやかに なるよ</p>
+  <button id="villageback" class="small corner">もどる</button>
+</section>
+
+<section id="shop" class="screen hidden">
+  <h2>おみせ</h2>
+  <p>くだもの <b id="shopbank">0</b> こ</p>
+  <h3>ぼうし</h3>
+  <div id="hats" class="items"></div>
+  <h3>ロープの いろ</h3>
+  <div id="ropes" class="items"></div>
+  <button id="shopback" class="small corner">もどる</button>
+</section>
+
+<div id="rotate" class="hidden">よこ または たて に して あそんでね</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

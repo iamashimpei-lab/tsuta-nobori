@@ -1,0 +1,111 @@
+:root {
+  --wood: #8a5a32;
+  --wood-dark: #4a2f3a;
+  --cream: #fff4d6;
+  --gold: #ffd23f;
+  --leaf: #4fae55;
+  --danger: #ff4f7b;
+  --ink: #3a1f0a;
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1f22; color: var(--cream); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
+.hidden { display: none !important; }
+
+.screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
+.screen.dim { background: rgba(10, 20, 18, 0.62); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+h1 { margin: 0; font-size: clamp(64px, 11vw, 140px); color: var(--gold); letter-spacing: 0.04em;
+  text-shadow: 0 6px 0 #7a3b10, 0 0 3px #7a3b10, 4px 0 0 #7a3b10, -4px 0 0 #7a3b10, 0 -4px 0 #7a3b10, 0 14px 24px rgba(0,0,0,0.45);
+  animation: bob 2.4s ease-in-out infinite; }
+h2 { margin: 0; font-size: clamp(30px, 4.6vw, 52px); color: #fff; text-shadow: 0 4px 0 var(--wood-dark), 0 0 2px var(--wood-dark); }
+h3 { margin: 10px 0 0; font-size: 24px; color: var(--gold); }
+.sub { margin: 0; font-size: clamp(18px, 2.4vw, 26px); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+@keyframes bob { 50% { transform: translateY(-8px) rotate(-1deg); } }
+
+.buttons { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 14px; }
+.row { display: flex; gap: 12px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+button { font: inherit; font-weight: 800; font-size: 26px; color: var(--ink); background: linear-gradient(#ffe9a8, #f6c35a); border: 0; border-radius: 22px;
+  padding: 14px 30px; min-width: 150px; box-shadow: 0 6px 0 #a8692a, 0 10px 18px rgba(0,0,0,0.35); cursor: pointer; touch-action: manipulation; }
+button:active { transform: translateY(4px); box-shadow: 0 2px 0 #a8692a, 0 4px 10px rgba(0,0,0,0.35); }
+button.big { font-size: 40px; padding: 18px 64px; background: linear-gradient(#b8f08a, #5cc05a); box-shadow: 0 7px 0 #2f7a3a, 0 12px 22px rgba(0,0,0,0.4); }
+button.small { font-size: 20px; padding: 10px 20px; min-width: 0; }
+button.corner { position: fixed; left: 20px; top: 20px; }
+button:disabled { filter: grayscale(0.9) brightness(0.7); }
+
+/* マップ */
+#map { background: rgba(10, 30, 24, 0.55); }
+#stages { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; max-width: 1100px; }
+.stage { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 190px; padding: 16px 10px 14px; border-radius: 26px; position: relative; }
+.stage:nth-child(odd) { transform: translateY(-14px); }
+.stage .num { font-size: 34px; color: #7a3b10; }
+.stage .nm { font-size: 19px; min-height: 2.4em; display: flex; align-items: center; }
+.stage .st i { font-style: normal; font-size: 28px; color: rgba(90, 50, 20, 0.28); }
+.stage .st i.on { color: #ff9f1c; text-shadow: 0 0 6px #fff3a0; }
+.stage .bb { position: absolute; top: -12px; right: -8px; font-size: 15px; background: var(--danger); color: #fff; border-radius: 12px; padding: 3px 9px; }
+.stage.locked { background: linear-gradient(#9aa29a, #6f7a72); box-shadow: 0 6px 0 #48514b; }
+.mapfoot { display: flex; gap: 18px; align-items: center; margin-top: 26px; }
+.bankline { font-size: 24px; color: #fff; }
+.bankline b { color: var(--gold); font-size: 30px; }
+
+/* 遊んでいる時の表示 */
+#hud { position: fixed; inset: 0; pointer-events: none; }
+#hud > * { text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 0 6px rgba(0,0,0,0.4); }
+.hudleft { position: absolute; left: 22px; top: 16px; font-weight: 800; }
+.hudright { position: absolute; right: 96px; top: 16px; text-align: right; font-weight: 800; font-size: 26px; }
+#hearts { display: flex; gap: 10px; height: 40px; align-items: center; }
+.heart { display: block; width: 34px; height: 30px; background: #ff5a7a; clip-path: path('M17 30 C 17 30 0 19 0 9 C 0 3 4 0 9 0 C 13 0 16 3 17 6 C 18 3 21 0 25 0 C 30 0 34 3 34 9 C 34 19 17 30 17 30 Z'); filter: drop-shadow(0 2px 0 rgba(0,0,0,0.5)); }
+.heart.lost { background: rgba(255,255,255,0.22); }
+#height { font-size: 26px; color: #fff; }
+#watergap { font-size: 22px; color: #bfe7ff; margin-top: 4px; }
+#watergap.danger { color: #ff8fa8; animation: blink 0.35s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.4; } }
+.fruiticon { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe08a, #ff9f1c 60%, #d9542e); margin-right: 8px; vertical-align: -4px; }
+#babyicon { display: none; margin-left: 12px; font-size: 18px; background: var(--danger); color: #fff; padding: 2px 8px; border-radius: 10px; }
+#babyicon.on { display: inline-block; }
+#pausebtn { pointer-events: auto; position: absolute; right: 18px; top: 14px; min-width: 0; width: 62px; height: 62px; padding: 0; font-size: 24px; border-radius: 50%; }
+#stagename { position: absolute; left: 0; right: 0; top: 42%; text-align: center; font-size: 44px; font-weight: 900; color: #fff; opacity: 0; }
+#stagename.fade { animation: namefade 2.2s ease-out; }
+@keyframes namefade { 0% { opacity: 0; transform: scale(0.8); } 15% { opacity: 1; transform: scale(1.05); } 25% { transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+#tutorial { position: absolute; left: 50%; top: 13%; transform: translateX(-50%); background: rgba(255, 244, 214, 0.94); color: var(--ink); text-shadow: none;
+  font-size: clamp(22px, 3vw, 32px); font-weight: 800; line-height: 1.5; padding: 16px 28px; border-radius: 22px; box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
+#tutorial b { color: #d0451b; }
+
+/* 結果 */
+#rstars { display: flex; gap: 12px; }
+#rstars i { font-style: normal; font-size: 84px; color: rgba(255,255,255,0.2); transition: transform 0.3s; }
+#rstars i.on { color: var(--gold); text-shadow: 0 0 18px #fff3a0, 0 5px 0 #b86a10; animation: pop 0.35s ease-out; }
+@keyframes pop { 0% { transform: scale(0.3) rotate(-30deg); } 70% { transform: scale(1.3); } 100% { transform: scale(1); } }
+#result.fail #rstars { display: none; }
+#rdesc { font-size: 24px; display: flex; flex-direction: column; gap: 6px; color: rgba(255,255,255,0.55); }
+#rdesc .ok { color: #fff; }
+#rdesc .baby { color: #ffd0dc; font-size: 28px; }
+#result.fail #rdesc { color: #fff; }
+
+/* 村・店 */
+#village { justify-content: flex-start; padding-top: 30px; }
+#village h2 { color: #fff4c4; text-shadow: 0 4px 0 #7a3b10, 0 0 3px #7a3b10, 3px 0 0 #7a3b10, -3px 0 0 #7a3b10; }
+#village p { font-size: 26px; margin: 0; color: #5a2a00; font-weight: 800; text-shadow: 0 0 4px #fff8e0, 0 0 8px #fff8e0; }
+#shop { background: rgba(10, 30, 24, 0.5); }
+#shop p { font-size: 26px; margin: 0; }
+#shop b { color: var(--gold); }
+.items { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.item { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 130px; padding: 12px 14px; font-size: 22px; }
+.item small { font-size: 16px; color: #7a3b10; }
+.item.on { background: linear-gradient(#b8f08a, #5cc05a); box-shadow: 0 6px 0 #2f7a3a; }
+.item.shake { animation: shake 0.3s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.sw { width: 80px; height: 14px; border-radius: 7px; margin: 8px 0; }
+.hat { width: 46px; height: 30px; display: block; border-radius: 8px; }
+.hat-none { border: 3px dashed rgba(90,50,20,0.4); }
+.hat-leaf { background: radial-gradient(ellipse at 50% 60%, #4fae55 60%, transparent 62%); }
+.hat-flower { background: radial-gradient(circle at 50% 50%, #ffd23f 22%, #ff8fb0 24% 55%, transparent 57%); }
+.hat-crown { background: linear-gradient(#ffcc33, #e0a010); clip-path: polygon(0 100%, 0 20%, 25% 60%, 50% 0, 75% 60%, 100% 20%, 100% 100%); }
+
+#rotate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #12302a; font-size: 28px; padding: 30px; text-align: center; }
+
+@media (max-height: 560px) {
+  h1 { font-size: 64px; }
+  button.big { font-size: 30px; padding: 12px 40px; }
+  .stage { width: 150px; }
+}

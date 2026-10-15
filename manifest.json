@@ -1,0 +1,10 @@
+{
+  "name": "つたのぼり",
+  "short_name": "つたのぼり",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#12302a",
+  "theme_color": "#12302a",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }]
+}
