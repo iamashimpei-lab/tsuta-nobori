@@ -239,7 +239,6 @@ function playVoice(e) {
       else if (r < 0.45) voice('grab');
       break;
     case 'loop': voice('loop'); break;
-    case 'kick': voice('kick'); break;
     case 'whiff': voice('whiff'); break;
     case 'splash': voice('hurt'); break;
     case 'fail': voice('fail'); break;
@@ -263,8 +262,6 @@ function playEvents(evs) {
       case 'whiff': sfx.whiff(); break;
       case 'splash': sfx.splash(); break;
       case 'bounce': sfx.bounce(); break;
-      case 'kick': sfx.kick(); break;
-      case 'bump': sfx.bump(); break;
       case 'loop': sfx.loop(); break;
       case 'creak': sfx.creak(e.level); break;
       case 'break': sfx.break(); break;

@@ -1,15 +1,18 @@
 // つたのぼり: 物理・面づくり・ルール (描画と音を持たない。node の自動プレイでも同じものを使う)
-// 座標は y が下向き正。世界の横幅は WORLD_W で固定し、画面の大きさに合わせて拡大縮小する。
+// 座標は y が下向き正。画面に見える横幅は WORLD_W で固定し、画面の大きさに合わせて拡大縮小する。
+// 森の横幅は FOREST_W (画面 2 枚分)。両側に壁はなく、カメラが左右にもサルを追う。
 
 export const G = 2200;
 export const DT = 1 / 120;
-export const WORLD_W = 1200; // iPad 横画面 (4:3) で縦に約 900 見える
-export const WALL_L = 52;
-export const WALL_R = WORLD_W - 52;
+export const WORLD_W = 1200; // 画面に見える横幅。iPad 横画面 (4:3) で縦に約 900 見える
+export const FOREST_W = 2400; // 枝のある森の横幅。この外には枝がない
+export const TRUNK_GAP = 600; // 奥に立つ木の幹の間隔 (見た目だけ。当たらない)
+export const trunkX = x => clamp(Math.round((x - TRUNK_GAP / 2) / TRUNK_GAP), 0, FOREST_W / TRUNK_GAP - 1) * TRUNK_GAP + TRUNK_GAP / 2;
 export const ROPE_RANGE = 360;
 export const ROPE_SPEED = 4200;
 export const BODY = 52; // 手 (ロープの先) から体の中心までの距離
 export const HEARTS = 3;
+export const AIR_DRAG = 1.0; // 空中で横の勢いが弱まる速さ (1 秒で約 37% に)
 
 // ---- 面の設計 (ワールド 1) ----
 // gimmick ごとに 1 つずつ新しい仕掛けを安全な場所で見せ、最後の面で組み合わせる
@@ -17,7 +20,7 @@ export const STAGES = [
   { id: '1-1', name: 'はじめての つる', height: 2400, gap: [150, 200], water: 26, fruits: 8, gimmick: 'basic', seed: 11 },
   { id: '1-2', name: 'とりさん はこんで', height: 3000, gap: [160, 210], water: 32, fruits: 9, gimmick: 'bird', seed: 23 },
   { id: '1-3', name: 'ポキッと えだ', height: 3200, gap: [165, 215], water: 38, fruits: 10, gimmick: 'thin', seed: 37 },
-  { id: '1-4', name: 'ながい つる', height: 3400, gap: [170, 220], water: 42, fruits: 10, gimmick: 'vine', seed: 41 },
+  { id: '1-4', name: 'ながい つる', height: 3400, gap: [170, 220], water: 38, fruits: 10, gimmick: 'vine', seed: 41 },
   { id: '1-5', name: 'ジャングルの てっぺん', height: 4200, gap: [160, 210], water: 43, fruits: 12, gimmick: 'mix', seed: 59 },
 ];
 
@@ -29,15 +32,17 @@ export function rng(seed) {
   };
 }
 
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 const hyp = Math.hypot;
 
-// 鳥: 決まった高さの道を左右に往復する。運んでいる間だけ別の動き
+// 鳥: 決まった高さの道を、すみか (home) の左右 BIRD_SPAN を往復する。運んでいる間だけ別の動き
+// 往復する範囲は森の中 (運ぶ時の範囲 70〜FOREST_W-70 と同じ) に収める
+const BIRD_SPAN = 1300;
 function birdFreePos(b, t) {
-  const span = WALL_R - WALL_L + 200;
+  const x0 = clamp(b.home - BIRD_SPAN / 2, 70, FOREST_W - 70 - BIRD_SPAN), span = BIRD_SPAN;
   const u = ((t * b.speed + b.phase) % (2 * span) + 2 * span) % (2 * span);
   const forward = u < span;
-  const x = WALL_L - 100 + (forward ? u : 2 * span - u);
+  const x = x0 + (forward ? u : 2 * span - u);
   return { x, y: b.lane + Math.sin(t * 2.2 + b.phase) * 14, vx: forward ? b.speed : -b.speed, vy: 0, dir: forward ? 1 : -1 };
 }
 
@@ -45,8 +50,8 @@ export function anchorPos(w, a, t = w.t) {
   if (a.kind === 'bird') {
     if (a.mode === 'carry' || a.mode === 'leave') {
       const d = t - a.modeT;
-      const x = clamp(a.cx + a.cvx * d, WALL_L + 70, WALL_R - 70);
-      const vx = x === WALL_L + 70 || x === WALL_R - 70 ? 0 : a.cvx;
+      const x = clamp(a.cx + a.cvx * d, 70, FOREST_W - 70);
+      const vx = x === 70 || x === FOREST_W - 70 ? 0 : a.cvx;
       return { x, y: a.cy + a.cvy * d, vx, vy: a.cvy, dir: Math.sign(a.cvx) || 1 };
     }
     return birdFreePos(a, t);
@@ -75,7 +80,7 @@ export function buildLevel(stageIndex) {
   const add = (a) => { a.id = anchors.length; anchors.push(a); return a; };
   const goalY = -st.height;
 
-  let x = WORLD_W / 2, y = -180;
+  let x = FOREST_W / 2, y = -180;
   add({ kind: 'branch', x, y, chain: true, size: 1.25 });
   let dir = R() < 0.5 ? 1 : -1;
   const chain = [anchors[0]];
@@ -98,25 +103,25 @@ export function buildLevel(stageIndex) {
     if (special === 'bird') {
       // 大きな切れ目: 鳥でしか越えられない。下の枝の少し上を鳥が往復する
       const lane = y - 150;
-      add({ kind: 'bird', lane, speed: 210 + R() * 50, phase: R() * 900, mode: 'free', chain: true });
+      add({ kind: 'bird', lane, home: x, speed: 210 + R() * 50, phase: R() * 900, mode: 'free', chain: true });
       gap = 560 + R() * 80;
       pendingBird++;
     } else if (special === 'vine') {
       // 大きな切れ目: 上から長いつるが垂れている
       const top = y - gap - 360;
-      const vx = clamp(x + dir * rand(90, 160), 130, WORLD_W - 130);
+      const vx = clamp(x + dir * rand(90, 160), 130, FOREST_W - 130);
       add({ kind: 'vine', x: vx, y: top, len: 300, chain: true });
       gap = gap + 330;
       pendingVine++;
     } else if (special === 'leaf') {
       // 切れ目の下に大きな葉 (トランポリン)
-      leaves.push({ x: clamp(x + dir * 120, 140, WORLD_W - 140), y: y + 120, w: 170 });
+      leaves.push({ x: clamp(x + dir * 120, 140, FOREST_W - 140), y: y + 120, w: 170 });
       gap += 120;
       pendingLeaf++;
     }
     let dx = rand(130, 280) * dir;
-    if (x + dx < 140 || x + dx > WORLD_W - 140) { dir = -dir; dx = -dx; }
-    const nx = clamp(x + dx, 140, WORLD_W - 140);
+    if (x + dx < 140 || x + dx > FOREST_W - 140) { dir = -dir; dx = -dx; }
+    const nx = clamp(x + dx, 140, FOREST_W - 140);
     const ny = y - gap;
     let fy = ny;
     if (!special) {
@@ -126,13 +131,17 @@ export function buildLevel(stageIndex) {
     }
     const a = add({ kind, x: nx, y: fy, chain: true, size: 0.85 + R() * 0.4 });
     chain.push(a);
-    if (R() < 0.75) dir = -dir;
+    // 同じ向きに続けて進むこともある (森の横の広さを使う)
+    if (R() < 0.5) dir = -dir;
     x = nx; y = fy;
   }
   // 道以外の枝 (寄り道・くだもの用)。近すぎる所には置かない
-  const extras = Math.round(st.height / 260);
-  for (let k = 0, tries = 0; k < extras && tries < 400; tries++) {
-    const ex = rand(130, WORLD_W - 130), ey = rand(goalY + 300, -380);
+  // 道の左右 450 以内に置く (飛びすぎても近くに何かつかめる枝があるように)
+  const extras = Math.round(st.height / 130);
+  for (let k = 0, tries = 0; k < extras && tries < 1600; tries++) {
+    const ey = rand(goalY + 300, -380);
+    const near = chain.reduce((b, a) => (a.kind !== 'bird' && Math.abs(a.y - ey) < Math.abs(b.y - ey) ? a : b), chain[0]);
+    const ex = clamp(near.x + rand(-450, 450), 130, FOREST_W - 130);
     if (anchors.some(a => a.kind !== 'bird' && hyp((a.x ?? 0) - ex, (a.kind === 'vine' ? a.y + a.len : a.y) - ey) < 150)) continue;
     if (anchors.some(a => a.kind === 'bird' && Math.abs(a.lane - ey) < 120)) continue;
     add({ kind: 'branch', x: ex, y: ey, chain: false, size: 0.8 + R() * 0.3 });
@@ -166,7 +175,7 @@ export function createWorld(stageIndex) {
     rope: null, holding: false, autoRelease: null,
     water: a0.y + 900, waterPause: 0, ground: a0.y + 390,
     hearts: HEARTS, combo: 0, maxCombo: 0, lastRelease: -9, whiffs: 0, fruitsGot: 0, baby: false,
-    freeze: 0, state: 'play', events: [], height: 0, clearT: null,
+    freeze: 0, state: 'play', events: [], height: 0, clearT: null, chain: lv.chain,
   };
   w.started = false; // 最初に指を離すまで水は動かない
   return w;
@@ -277,6 +286,14 @@ function splash(w) {
   if (m.mode === 'hang') release(w);
   w.rope = null;
   m.y = w.water - 60; m.vx *= 0.3; m.vy = -1650;
+  // 水しぶきで、少し上の道の枝の真下あたりへ跳ね上げる (横へ飛びすぎても道に戻れる)
+  let best = null;
+  for (const a of w.chain) { if (a.kind === 'bird') continue; const d = Math.abs(a.y - (m.y - 400)); if (!best || d < best.d) best = { a, d }; }
+  if (best) {
+    const tx = best.a.x;
+    if (Math.abs(tx - m.x) > 1100) m.x = tx - Math.sign(tx - m.x) * 1100;
+    m.vx = (tx - m.x) / 0.75; // 0.75 秒 = 跳ね上がって頂点に着くまで
+  }
   w.water += 320; w.waterPause = 1.6;
   w.invuln = w.t + 1.2;
 }
@@ -329,6 +346,8 @@ export function step(w) {
       m.vy += sgn * (-dx / r) * 1500 * DT;
     }
   }
+  // 空中では横の勢いが少しずつ弱まる (壁がない代わりに、横へ飛んでいきすぎない)。水しぶきの直後は弱めない
+  if (m.mode === 'fly' && !(w.invuln > w.t)) m.vx *= Math.exp(-AIR_DRAG * DT);
   m.x += m.vx * DT; m.y += m.vy * DT;
 
   if (m.mode === 'hang') {
@@ -352,12 +371,6 @@ export function step(w) {
     if (Math.abs(m.rot) > 2 * Math.PI && !m.looped) { m.looped = true; ev(w, 'loop', { x: m.x, y: m.y }); }
   } else m.looped = false;
 
-  // 両側の幹で跳ね返る
-  // ぶら下がり中に幹へ当たったら、けって勢いをつける (詰まり防止。けりの技にもなる)
-  const kick = m.mode === 'hang' && m.anchor.kind !== 'bird' && w.t - (w.lastKick || -9) > 0.7;
-  if ((m.x < WALL_L || m.x > WALL_R) && kick) w.lastKick = w.t;
-  if (m.x < WALL_L) { m.x = WALL_L; if (m.vx < 0) { m.vx = kick ? Math.max(-m.vx, 0) * 0.9 + 520 : -m.vx * 0.55; ev(w, kick ? 'kick' : 'bump', { x: m.x, y: m.y }); } }
-  if (m.x > WALL_R) { m.x = WALL_R; if (m.vx > 0) { m.vx = kick ? -(Math.max(m.vx, 0) * 0.9 + 520) : -m.vx * 0.55; ev(w, kick ? 'kick' : 'bump', { x: m.x, y: m.y }); } }
   // スタートの地面 (水がかぶるまでは、落ちてもここからやり直せる)
   if (m.mode === 'stand') {
     m.vx = 0; m.vy = 0; m.y = w.ground - BODY - 34;

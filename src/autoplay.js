@@ -1,5 +1,5 @@
 // 自動プレイの頭脳: 本物の入力 (press / lift) だけで遊ぶ。node の大量テストと、ブラウザのデモの両方で使う
-import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, WALL_L, WALL_R } from './game.js';
+import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, FOREST_W, AIR_DRAG } from './game.js';
 
 const hyp = Math.hypot;
 let FRUIT_SEEK = false;
@@ -32,7 +32,7 @@ function simulateHang(w, m0, a, steps) {
       const wr = (m.vx - p.vx) * nx + (m.vy - p.vy) * ny;
       if (wr > 0) { m.vx -= wr * nx; m.vy -= wr * ny; }
     }
-    if (m.x < WALL_L || m.x > WALL_R) break;
+    if (m.x < -200 || m.x > FOREST_W + 200) break;
     out.push({ i: i + 1, t, x: m.x, y: m.y, vx: m.vx, vy: m.vy });
   }
   return out;
@@ -42,8 +42,8 @@ function simulateHang(w, m0, a, steps) {
 function bestFrom(w, s, excl, minGainY) {
   let best = null;
   for (let tau = 0.06; tau <= 1.1; tau += 0.04) {
-    const x = s.x + s.vx * tau, y = s.y + s.vy * tau + 0.5 * G * tau * tau;
-    if (x < WALL_L || x > WALL_R) break;
+    const x = s.x + s.vx * (1 - Math.exp(-AIR_DRAG * tau)) / AIR_DRAG, y = s.y + s.vy * tau + 0.5 * G * tau * tau;
+    if (x < -200 || x > FOREST_W + 200) break;
     if (y + BODY > w.water - (w.stage.water * (s.t - w.t + tau)) - 40) break;
     for (const a of w.anchors) {
       if (a === excl) continue;

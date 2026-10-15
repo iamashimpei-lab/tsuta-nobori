@@ -1,7 +1,7 @@
 // つたのぼり: 描画
 // 色の役割 (550 Atelier の手順より): サル = 暖色 / つかめる物 = 黄色い光の輪 / 危険 = ピンク・赤 / 背景 = 暗く彩度低め
 // 影は黒を混ぜず、色相を紫・青緑へずらして暗くする。一番明るいのはサル、次につかめる物、背景が一番暗い
-import { WORLD_W, WALL_L, WALL_R, BODY, anchorPos, grabPoint, grabbable } from './game.js';
+import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable } from './game.js';
 import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite } from './art.js';
 
 const FONT = '"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif';
@@ -28,7 +28,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
-  const R = { last: {}, scale: 1, dpr: 1, viewH: 900, camY: 0, camInit: false, shake: 0, particles: [], texts: [], flash: 0, squash: 1, stretch: 0, ringT: -9, hint: null };
+  const R = { last: {}, scale: 1, dpr: 1, viewH: 900, camX: 0, camY: 0, camInit: false, shake: 0, particles: [], texts: [], flash: 0, squash: 1, stretch: 0, ringT: -9, hint: null };
 
   R.resize = () => {
     R.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -63,9 +63,6 @@ export function createRenderer(canvas) {
       } else if (e.type === 'bounce') {
         burst(e.x, e.y, 12, ['#9be15d', '#ffffff'], 300, 0.5, 'leaf');
         R.shake = Math.max(R.shake, 8); R.texts.push({ s: 'ボヨーン', x: e.x, y: e.y - 40, t: w.t, c: '#c8ff8a', size: 34 });
-      } else if (e.type === 'kick') {
-        burst(e.x, e.y + 40, 8, ['#c9a06a', '#ffffff'], 260, 0.45, 'chip');
-        R.shake = Math.max(R.shake, 6); R.texts.push({ s: 'キック！', x: e.x + (e.x < WORLD_W / 2 ? 90 : -90), y: e.y, t: w.t, c: '#ffcf8a', size: 28 });
       } else if (e.type === 'loop') {
         R.shake = Math.max(R.shake, 10); R.texts.push({ s: 'ぐるりん！', x: e.x, y: e.y - 80, t: w.t, c: '#ffd23f', size: 40 });
       } else if (e.type === 'creak') {
@@ -110,9 +107,15 @@ export function createRenderer(canvas) {
     if (wantBottom - ty > R.viewH * 0.5) ty = Math.max(ty, wantBottom - R.viewH * 0.5 - R.viewH * 0.02);
     ty = Math.min(ty, m.y + R.viewH * 0.18);
     if (w.state === 'clear') ty = m.y - R.viewH * 0.05;
-    if (!R.camInit) { R.camY = ty; R.camInit = true; }
+    // 横: サルを追う。森の端では外を見せすぎないが、サルは必ず画面に入れる
+    let tx = clamp(m.x, WORLD_W / 2 - 300, FOREST_W - WORLD_W / 2 + 300);
+    tx = clamp(tx, m.x - WORLD_W * 0.4, m.x + WORLD_W * 0.4);
+    if (!R.camInit) { R.camX = tx; R.camY = ty; R.camInit = true; }
+    R.camX += (tx - R.camX) * Math.min(1, dt * 5);
+    R.camX = clamp(R.camX, m.x - WORLD_W * 0.42, m.x + WORLD_W * 0.42); // 速く飛んでもサルを画面の外へ出さない
     R.camY += (ty - R.camY) * Math.min(1, dt * 5);
   }
+  const viewL = () => R.camX - WORLD_W / 2;
 
   // 手前の葉 (視差 1.25、両端の幹の上だけ) と光の粒
   function foreground(t) {
@@ -124,7 +127,7 @@ export function createRenderer(canvas) {
     for (let k = k0; k <= k1; k++) {
       const y = base + k * SP + hash(k) * 160;
       const left = k % 2 === 0;
-      ctx.save(); ctx.translate(left ? -70 : WORLD_W + 70, y);
+      ctx.save(); ctx.translate(viewL() + (left ? -70 : WORLD_W + 70), y);
       if (!left) ctx.scale(-1, 1);
       ctx.rotate(-0.25 + hash(k + 3) * 0.5 + Math.sin(t * 0.8 + k) * 0.04);
       ctx.globalAlpha = 0.95;
@@ -134,7 +137,7 @@ export function createRenderer(canvas) {
     ctx.globalAlpha = 1;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (let k = 0; k < 18; k++) {
-      const x = (hash(k * 3.1) * WORLD_W + Math.sin(t * 0.4 + k) * 40);
+      const x = viewL() + (hash(k * 3.1) * WORLD_W + Math.sin(t * 0.4 + k) * 40);
       const y = top + ((hash(k * 7.7) * R.viewH - t * (8 + hash(k) * 14)) % R.viewH + R.viewH) % R.viewH;
       const a = 0.25 + 0.25 * Math.sin(t * 2 + k);
       ctx.fillStyle = `rgba(255,240,170,${a})`;
@@ -148,53 +151,69 @@ export function createRenderer(canvas) {
   let backdrops = null, trunks = null;
   function background(w, t) {
     if (!backdrops) backdrops = [makeBackdrop(WORLD_W, BD_H, 0), makeBackdrop(WORLD_W, BD_H, 1)];
-    const top = R.camY - R.viewH / 2;
+    const top = R.camY - R.viewH / 2, L = viewL();
     const prog = clamp(-R.camY / -w.goalY, 0, 1);
     const g = ctx.createLinearGradient(0, top, 0, top + R.viewH);
     g.addColorStop(0, mixHex('2c6a5a', 'f2d88a', Math.pow(prog, 1.6)));
     g.addColorStop(0.6, mixHex('17423a', '8fbf74', Math.pow(prog, 1.4)));
     g.addColorStop(1, mixHex('0c2626', '3f7454', prog));
-    ctx.fillStyle = g; ctx.fillRect(-40, top - 40, WORLD_W + 80, R.viewH + 80);
+    ctx.fillStyle = g; ctx.fillRect(L - 40, top - 40, WORLD_W + 80, R.viewH + 80);
     // 光の筋 (奥)
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (let k = 0; k < 6; k++) {
-      const x0 = k * 260 - 200 + Math.sin(t * 0.2 + k) * 20;
+      const x0 = L + k * 260 - 200 + Math.sin(t * 0.2 + k) * 20;
       ctx.fillStyle = `rgba(255,236,170,${0.03 + 0.05 * prog})`;
       ctx.beginPath(); ctx.moveTo(x0, top - 40); ctx.lineTo(x0 + 110, top - 40); ctx.lineTo(x0 + 420, top + R.viewH + 40); ctx.lineTo(x0 + 240, top + R.viewH + 40); ctx.fill();
     }
     ctx.restore();
     // 奥 (0.3) と中 (0.6) の森の絵
+    // 横にも並べる。つなぎ目が目立たないよう 1 枚おきに左右反転
     for (const [img, par] of [[backdrops[0], 0.3], [backdrops[1], 0.6]]) {
-      const base = R.camY * (1 - par);
+      const base = R.camY * (1 - par), baseX = R.camX * (1 - par);
       const k0 = Math.floor((top - 40 - base) / BD_H), k1 = Math.floor((top + R.viewH + 40 - base) / BD_H);
-      for (let k = k0; k <= k1; k++) ctx.drawImage(img, 0, base + k * BD_H, WORLD_W, BD_H);
+      const j0 = Math.floor((L - 40 - baseX) / WORLD_W), j1 = Math.floor((L + WORLD_W + 40 - baseX) / WORLD_W);
+      for (let j = j0; j <= j1; j++) {
+        const x0 = baseX + j * WORLD_W;
+        for (let k = k0; k <= k1; k++) {
+          if (j % 2) { ctx.save(); ctx.translate(x0 + WORLD_W, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, base + k * BD_H, WORLD_W, BD_H); ctx.restore(); }
+          else ctx.drawImage(img, x0, base + k * BD_H, WORLD_W, BD_H);
+        }
+      }
     }
     // 上へ行くほど日が差す色に
-    ctx.fillStyle = `rgba(255,220,140,${0.18 * prog})`; ctx.fillRect(-40, top - 40, WORLD_W + 80, R.viewH + 80);
+    ctx.fillStyle = `rgba(255,220,140,${0.18 * prog})`; ctx.fillRect(L - 40, top - 40, WORLD_W + 80, R.viewH + 80);
     // 霧の帯 (ゆっくり流れる)
     for (let k = 0; k < 3; k++) {
       const yy = top + ((k * 0.37 + t * 0.01) % 1) * R.viewH;
       const fg = ctx.createLinearGradient(0, yy - 60, 0, yy + 60);
       fg.addColorStop(0, 'rgba(200,240,220,0)'); fg.addColorStop(0.5, `rgba(200,240,220,${0.07 + 0.05 * prog})`); fg.addColorStop(1, 'rgba(200,240,220,0)');
-      ctx.fillStyle = fg; ctx.fillRect(-40, yy - 60, WORLD_W + 80, 120);
+      ctx.fillStyle = fg; ctx.fillRect(L - 40, yy - 60, WORLD_W + 80, 120);
     }
   }
 
-  // 両側の大きな幹 (壁)
-  const TR_W = 130, TR_H = 700;
-  function walls(t) {
+  // 奥に立つ木の幹 (枝の生えもと。当たらないので少し暗くして奥に見せる)
+  const TR_W = 110, TR_H = 700;
+  function trunksDraw() {
     if (!trunks) trunks = [makeTrunk(TR_W, TR_H, 0), makeTrunk(TR_W, TR_H, 1)];
-    const top = R.camY - R.viewH / 2;
+    const top = R.camY - R.viewH / 2, L = viewL();
     const k0 = Math.floor((top - 40) / TR_H), k1 = Math.floor((top + R.viewH + 40) / TR_H);
-    for (let k = k0; k <= k1; k++) {
-      ctx.drawImage(trunks[0], WALL_L + 14 - TR_W, k * TR_H, TR_W, TR_H);
-      ctx.drawImage(trunks[1], WALL_R - 14, k * TR_H, TR_W, TR_H);
+    for (let x = TRUNK_GAP / 2, i = 0; x < FOREST_W; x += TRUNK_GAP, i++) {
+      if (x + TR_W < L || x - TR_W > L + WORLD_W) continue;
+      for (let k = k0; k <= k1; k++) ctx.drawImage(trunks[i % 2], x - TR_W / 2, k * TR_H, TR_W, TR_H);
+      ctx.fillStyle = 'rgba(8,24,26,0.38)'; ctx.fillRect(x - TR_W / 2, top - 40, TR_W, R.viewH + 80);
     }
-    // 幹のふちの影 (内側へ落ちる影)
-    for (const [x, dir] of [[WALL_L + 14, 1], [WALL_R - 14, -1]]) {
-      const g = ctx.createLinearGradient(x, 0, x + dir * 40, 0);
-      g.addColorStop(0, 'rgba(10,20,25,0.45)'); g.addColorStop(1, 'rgba(10,20,25,0)');
-      ctx.fillStyle = g; ctx.fillRect(dir > 0 ? x : x - 40, top - 40, 40, R.viewH + 80);
+  }
+
+  // 森の外 (枝がない所) は暗くして、行っても何もないと見せる
+  function forestEdges() {
+    const top = R.camY - R.viewH / 2, L = viewL();
+    for (const [x0, dir] of [[0, -1], [FOREST_W, 1]]) {
+      const g = ctx.createLinearGradient(x0, 0, x0 + dir * 260, 0);
+      g.addColorStop(0, 'rgba(4,14,16,0)'); g.addColorStop(1, 'rgba(4,14,16,0.82)');
+      ctx.fillStyle = g; ctx.fillRect(dir > 0 ? x0 : x0 - 260, top - 40, 260, R.viewH + 80);
+      ctx.fillStyle = 'rgba(4,14,16,0.82)';
+      if (dir < 0 && L < x0 - 260) ctx.fillRect(L - 40, top - 40, x0 - 260 - L + 40, R.viewH + 80);
+      if (dir > 0 && L + WORLD_W > x0 + 260) ctx.fillRect(x0 + 260, top - 40, L + WORLD_W + 40 - x0 - 260, R.viewH + 80);
     }
   }
 
@@ -220,11 +239,11 @@ export function createRenderer(canvas) {
       if (!inView(p.y, 420) && !inView(vy, 300)) continue;
       const reach = Math.hypot(grabPoint(w, a).x - m.x, grabPoint(w, a).y - m.y) < 360;
       if (a.kind === 'vine') { vine(w, a, p, t, reach); continue; }
-      const side = p.x < WORLD_W / 2 ? -1 : 1;
       const big = a.goal ? 1.9 : (a.size || 1);
       const r = 46 * big;
-      // 枝 (幹から伸びる)
-      const wx = side < 0 ? WALL_L - 10 : WALL_R + 10;
+      // 枝 (いちばん近い幹から伸びる)
+      const wx = trunkX(p.x);
+      const side = wx < p.x ? -1 : 1; // 幹が左なら -1
       const shake = a.kind === 'thin' && a.crack ? Math.sin(t * 60) * a.crack * 1.5 : 0;
       ctx.save(); ctx.translate(shake, 0);
       if (!(a.kind === 'thin' && a.broken)) {
@@ -326,7 +345,7 @@ export function createRenderer(canvas) {
       ctx.restore();
       // 茎
       ctx.strokeStyle = '#3d7a34'; ctx.lineWidth = 6;
-      const wx = l.x < WORLD_W / 2 ? WALL_L : WALL_R;
+      const wx = trunkX(l.x);
       ctx.beginPath(); ctx.moveTo(wx, l.y + 40); ctx.quadraticCurveTo((wx + l.x) / 2, l.y + 50, l.x, l.y + 12); ctx.stroke();
     }
   }
@@ -347,43 +366,44 @@ export function createRenderer(canvas) {
 
   function ground(w) {
     if (w.ground >= w.water + 30) return;
-    const top = R.camY - R.viewH / 2;
+    const top = R.camY - R.viewH / 2, L = viewL();
     if (w.ground > top + R.viewH + 40) return;
     // 川岸: 草 → 土 (下へ行くほど紫寄りに暗く) → 石と根
     const g = ctx.createLinearGradient(0, w.ground, 0, w.ground + 260);
     g.addColorStop(0, '#7a5434'); g.addColorStop(0.5, '#5a3c34'); g.addColorStop(1, '#2e2238');
-    ctx.fillStyle = g; ctx.fillRect(-40, w.ground, WORLD_W + 80, 900);
-    for (let k = 0; k < 26; k++) {
-      const x = hash(k * 3.3) * WORLD_W, y = w.ground + 40 + hash(k * 7.1) * 200, r = 8 + hash(k) * 16;
+    ctx.fillStyle = g; ctx.fillRect(L - 40, w.ground, WORLD_W + 80, 900);
+    for (let k = 0; k < 52; k++) {
+      const x = hash(k * 3.3) * FOREST_W, y = w.ground + 40 + hash(k * 7.1) * 200, r = 8 + hash(k) * 16;
       ctx.fillStyle = k % 3 ? '#6e5a58' : '#8a7468';
       ctx.beginPath(); ctx.ellipse(x, y, r * 1.3, r, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.35, r * 0.5, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     }
     ctx.strokeStyle = '#4a3020'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    for (let k = 0; k < 8; k++) {
-      const x = hash(k * 9.7) * WORLD_W;
+    for (let k = 0; k < 16; k++) {
+      const x = hash(k * 9.7) * FOREST_W;
       ctx.beginPath(); ctx.moveTo(x, w.ground + 6); ctx.quadraticCurveTo(x + 30, w.ground + 60, x + (k % 2 ? 60 : -50), w.ground + 120); ctx.stroke();
     }
     ctx.fillStyle = '#4c9a4a';
-    for (let x = -20; x < WORLD_W + 20; x += 22) { ctx.beginPath(); ctx.moveTo(x, w.ground + 6); ctx.lineTo(x + 8, w.ground - 14 - hash(x) * 12); ctx.lineTo(x + 16, w.ground + 6); ctx.fill(); }
-    ctx.fillStyle = '#74c25e'; ctx.fillRect(-40, w.ground - 2, WORLD_W + 80, 10);
+    for (let x = Math.floor(L / 22) * 22 - 22; x < L + WORLD_W + 20; x += 22) { ctx.beginPath(); ctx.moveTo(x, w.ground + 6); ctx.lineTo(x + 8, w.ground - 14 - hash(x) * 12); ctx.lineTo(x + 16, w.ground + 6); ctx.fill(); }
+    ctx.fillStyle = '#74c25e'; ctx.fillRect(L - 40, w.ground - 2, WORLD_W + 80, 10);
   }
 
   function water(w, t) {
     const wy = w.water;
-    const top = R.camY - R.viewH / 2, bot = top + R.viewH;
+    const top = R.camY - R.viewH / 2, bot = top + R.viewH, L = viewL();
     if (wy > bot + 40) return;
     const g = ctx.createLinearGradient(0, wy, 0, Math.max(bot, wy + 200));
     g.addColorStop(0, 'rgba(70,165,230,0.9)'); g.addColorStop(1, 'rgba(18,48,110,0.98)');
     ctx.fillStyle = g;
     const surf = x => wy + Math.sin(x * 0.02 + t * 4) * 7 + Math.sin(x * 0.007 - t * 2.6) * 10;
-    ctx.beginPath(); ctx.moveTo(-40, bot + 60);
-    for (let x = -40; x <= WORLD_W + 40; x += 16) ctx.lineTo(x, surf(x));
-    ctx.lineTo(WORLD_W + 40, bot + 60); ctx.fill();
+    const x0 = Math.floor(L / 16) * 16 - 48, x1 = L + WORLD_W + 48;
+    ctx.beginPath(); ctx.moveTo(x0, bot + 60);
+    for (let x = x0; x <= x1; x += 16) ctx.lineTo(x, surf(x));
+    ctx.lineTo(x1, bot + 60); ctx.fill();
     ctx.strokeStyle = 'rgba(235,250,255,0.95)'; ctx.lineWidth = 5;
-    ctx.beginPath(); for (let x = -40; x <= WORLD_W + 40; x += 16) x === -40 ? ctx.moveTo(x, surf(x)) : ctx.lineTo(x, surf(x)); ctx.stroke();
+    ctx.beginPath(); for (let x = x0; x <= x1; x += 16) x === x0 ? ctx.moveTo(x, surf(x)) : ctx.lineTo(x, surf(x)); ctx.stroke();
     for (let k = 0; k < 4; k++) {
-      const x = ((hash(k * 5) * 1600 - t * 50 * (1 + k * 0.2)) % 1600 + 1600) % 1600 - 200;
+      const x = L + ((hash(k * 5) * 1600 - t * 50 * (1 + k * 0.2)) % 1600 + 1600) % 1600 - 200;
       ctx.save(); ctx.translate(x, surf(x) + 4); ctx.rotate(Math.sin(t * 2 + k) * 0.08);
       ctx.fillStyle = '#6b4526'; ctx.fillRect(-64, -9, 128, 18);
       ctx.fillStyle = '#4a2f3a'; ctx.fillRect(-64, 3, 128, 6);
@@ -391,7 +411,7 @@ export function createRenderer(canvas) {
       ctx.restore();
     }
     for (let k = 0; k < 16; k++) {
-      const bx = hash(k) * WORLD_W;
+      const bx = L + hash(k) * WORLD_W;
       const by = wy + 30 + ((hash(k + 7) * 500 - t * 90 * (0.5 + hash(k + 9))) % 500 + 500) % 500;
       ctx.strokeStyle = 'rgba(220,245,255,0.45)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(bx, by, 4 + hash(k + 2) * 6, 0, Math.PI * 2); ctx.stroke();
@@ -597,9 +617,10 @@ export function createRenderer(canvas) {
     const s = R.scale * R.dpr;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const shx = (Math.random() - 0.5) * R.shake * 2, shy = (Math.random() - 0.5) * R.shake * 2;
-    ctx.setTransform(s, 0, 0, s, shx * s, (R.viewH / 2 - R.camY + shy) * s);
+    ctx.setTransform(s, 0, 0, s, (WORLD_W / 2 - R.camX + shx) * s, (R.viewH / 2 - R.camY + shy) * s);
     background(w, t);
-    walls(t);
+    trunksDraw();
+    forestEdges();
     leaves(w, t);
     anchors(w, t);
     fruits(w, t);
@@ -696,7 +717,7 @@ export function createRenderer(canvas) {
   };
 
   // 画面座標 (CSS px) → 世界座標
-  R.toWorld = (cx, cy) => ({ x: cx / R.scale, y: cy / R.scale - R.viewH / 2 + R.camY });
+  R.toWorld = (cx, cy) => ({ x: cx / R.scale - WORLD_W / 2 + R.camX, y: cy / R.scale - R.viewH / 2 + R.camY });
 
   return R;
 }

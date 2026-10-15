@@ -17,6 +17,7 @@
 
 ## Key operational notes
 
+- 森に左右の壁はない (2026-10-16 本人指摘で撤去)。横の広さは `FOREST_W`、空中の横の弱まりは `AIR_DRAG`。壁で弾き返す仕組みを戻さない
 - 物理とルール (`src/game.js`) は描画と音を持たない。node の自動プレイ (`tools/bot.mjs`) とブラウザで同じものが動く。仕様を変えたら必ず `node tools/bot.mjs 263 0.10` と `0.14` (子ども相当) を回す
 - 見た目の確認は `python3 tools/dev-server.py` + `python3 tools/qa.py` (Playwright の画面写真)。見た目のバグはテストを通り抜けるので、写真を必ず見る
 - 公開の直前に `python3 tools/stamp.py` を呼ぶ。ホーム画面の一番下の「last update」の時刻と `sw.js` の `VERSION` が更新される (上げないと iPad に古い版が残る)
