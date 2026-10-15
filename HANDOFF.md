@@ -1,6 +1,6 @@
 # HANDOFF — つたのぼり
 
-**Status (2026-10-15)**: 第 1 便 = ワールド 1 (5 面)・サルの村・おみせ・オフライン対応。自動プレイで各面 263 回の検証済み。公開先 https://iamashimpei-lab.github.io/tsuta-nobori/ (GitHub Pages、main へ push で反映)。
+**Status (2026-10-16)**: 第 1 便 = ワールド 1 (5 面)・サルの村・おみせ・オフライン対応。絵を作り込み、声は本物の動物の鳴き声 30 本、曲は熱帯雨林風 (候補 C)。試聴ページ `voice-test.html`。自動プレイで各面 263 回の検証済み。公開先 https://iamashimpei-lab.github.io/tsuta-nobori/ (GitHub Pages、main へ push で反映)。
 
 ## Next up
 
