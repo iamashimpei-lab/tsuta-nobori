@@ -20,7 +20,7 @@
 <body>
 <h1>音の試聴</h1>
 <p>押すと、ゲームで鳴る音がそのまま聞こえます。もう一度押すと止まります。</p>
-<h2>曲 (遊んでいる時)</h2>
+<h2>曲</h2>
 <div class="grid" id="bgm"></div>
 <div id="list"></div>
 <script type="module">
@@ -36,7 +36,7 @@ const GROUPS = [['m_', 'サル'], ['b_', '小ザル'], ['t_', 'オオハシ']];
 const list = document.getElementById('list');
 let cur = null;
 function stop() { if (cur) { cur.a.pause(); cur.b.classList.remove('on'); cur = null; } }
-const BGM = [['bgm-play', '今の曲'], ['bgm-jungle_b', '候補 B'], ['bgm-jungle_c', '候補 C'], ['bgm-jungle_d', '候補 D']];
+const BGM = [['bgm-play', '遊んでいる時'], ['bgm-home', 'ホーム画面']];
 for (const [file, label] of BGM) {
   const b = document.createElement('button');
   b.innerHTML = `${label}<small>${file}</small>`;
