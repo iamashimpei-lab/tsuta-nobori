@@ -23,6 +23,22 @@ TRACKS: dict[str, tuple[str, int, float, float]] = {
     "play": ("Upbeat jungle adventure video game music for kids, energetic tribal hand drums, djembe and congas, "
              "shakers, playful marimba and kalimba melody, bouncy wooden flute riffs, monkeys swinging through vines, "
              "fun, bright, exciting chase, tropical rainforest", 124, 0.68, 0.62),
+    # 2026-10-15 本人希望「もっとジャングルっぽく、Pat Metheny Group の We Live Here のイントロのように」。
+    # 曲名・人名はプロンプトに入れず、音の特徴 (打楽器のループ + 声 + 澄んだギター + 広がる鍵盤) で頼む
+    "jungle_a": ("Lush rainforest jazz fusion groove, hypnotic layered hand percussion loop with congas, shakers, "
+                 "cabasa and talking drum, soft programmed groove under live drums, warm wordless choir voices singing "
+                 "a soaring hopeful melody, shimmering clean jazz guitar with chorus, airy synth pads and bell-like "
+                 "electric piano, distant tropical birds, spacious, uplifting, adventurous, 1990s fusion", 100, 0.6, 0.6),
+    "jungle_b": ("Uplifting jungle adventure fusion, deep tribal percussion groove, congas, djembe, berimbau and shakers "
+                 "in a rolling loop, wordless vocal chant melody, bright clean electric guitar melody, warm analog synth "
+                 "pads, marimba accents, misty rainforest morning, spacious and joyful, 1990s jazz fusion", 112, 0.65, 0.6),
+    "jungle_c": ("Dense Amazon rainforest at dawn, exotic tribal percussion ensemble with congas, bongos, talking drums, "
+                 "log drums, shakers and rain sticks in a hypnotic polyrhythm, layered wordless chanting voices, soaring "
+                 "clean electric guitar melody with chorus, lush synth pads, jungle birds and insects, mysterious yet "
+                 "uplifting, cinematic world fusion", 104, 0.75, 0.5),
+    "jungle_d": ("Deep jungle world fusion, rolling Brazilian percussion with surdo, congas, berimbau and shakers, "
+                 "wordless soaring choir oohs, warm fretless bass, shimmering guitar arpeggios, pan flute calls, "
+                 "rainforest birds and insects, misty and adventurous, wide and spacious", 96, 0.7, 0.5),
     "home": ("Cheerful relaxed jungle village theme for a kids video game, warm marimba and kalimba melody, "
              "soft bongos and shakers, gentle ukulele, birdsong feeling, sunny tropical rainforest, happy and cozy", 100, 0.45, 0.6),
 }
