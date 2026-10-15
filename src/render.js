@@ -37,7 +37,7 @@ export function createRenderer(canvas) {
     R.viewH = ch / R.scale;
   };
 
-  R.reset = () => { R.camInit = false; R.particles = []; R.texts = []; R.flash = 0; R.shake = 0; };
+  R.reset = () => { R.camInit = false; R.particles = []; R.texts = []; R.flash = 0; R.shake = 0; R.hint = null; R.ringT = -9; R.squash = 1; };
 
   // ---- 出来事から演出を作る ----
   R.onEvents = (w, evs) => {
@@ -595,7 +595,7 @@ export function createRenderer(canvas) {
     if (!R.hint) return;
     const h = R.hint;
     const d = t - h.t;
-    if (d > 0.4) return;
+    if (d < 0 || d > 0.4) return;
     ctx.strokeStyle = h.miss ? `rgba(255,120,150,${1 - d / 0.4})` : `rgba(255,255,255,${1 - d / 0.4})`;
     ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(h.x, h.y, 18 + d * 110, 0, Math.PI * 2); ctx.stroke();

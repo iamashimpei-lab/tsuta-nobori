@@ -84,7 +84,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && mod
 // 一時停止: 指の状態だけ解除し、枝や鳥につかまったままにする (手を離させない)
 function pause() { if (mode !== 'play') return; mode = 'pause'; activePointer = null; if (world) world.holding = false; show('hud', 'pause'); }
 $('pausebtn').addEventListener('click', () => { unlockAudio(); sfx.tap(); pause(); });
-$('resume').addEventListener('click', () => { sfx.tap(); mode = 'play'; last = performance.now(); show('hud'); });
+$('resume').addEventListener('click', () => { unlockAudio(); sfx.tap(); mode = 'play'; last = performance.now(); show('hud'); });
 $('quit').addEventListener('click', () => { sfx.tap(); openMap(); });
 $('retry2').addEventListener('click', () => { sfx.tap(); startStage(stageIndex); });
 

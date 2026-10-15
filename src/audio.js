@@ -14,7 +14,8 @@ export function unlockAudio() {
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
-  if (ac.state === 'suspended') ac.resume();
+  // 画面ロックや通知の後は 'interrupted' になる端末がある。どちらでも鳴らし直す
+  if (ac.state === 'suspended' || ac.state === 'interrupted') ac.resume().catch(() => {});
 }
 
 export function setSound(music, sfx) {
@@ -148,7 +149,7 @@ export function startMusic(name = 'home') {
     src.connect(g); g.connect(musicBus);
     src.start(t, LOOP_HEAD);
     curSrc = src; curGain = g; curName = name;
-  }).catch(() => startSynth());
+  }).catch(() => { if (wantName === name && !curSrc) startSynth(); });
 }
 
 function startSynth() {
