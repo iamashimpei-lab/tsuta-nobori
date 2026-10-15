@@ -4,7 +4,8 @@
 
 - 遊ぶ: https://iamashimpei-lab.github.io/tsuta-nobori/ (Safari で開いて「ホーム画面に追加」すると、次からネットなしでも開ける)
 - 操作: 押したまま = ぶら下がって漕ぐ / 離す = 飛ぶ / 飛んでいる間に枝を押す = ロープ
-- 絵と音はすべてプログラムで描いて合成している (外部の素材なし)
+- 絵と効果音はプログラムで描いて合成している。曲は Gemini (Lyria) で作った
+- 動物の鳴き声は Wikimedia Commons の本物の録音 (CC BY / CC BY-SA) から切り出した。出典は [assets/voice/CREDITS.md](assets/voice/CREDITS.md)
 
 ## 開発
 

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>鳴き声の試聴</title>
+<style>
+  :root { --bg: #1d3b26; --card: #f3e3bf; --ink: #3a1d2a; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; }
+  h1 { color: #ffe9a8; font-size: 22px; margin: 0 0 4px; }
+  p { color: #e8f2d8; margin: 0 0 16px; font-size: 14px; }
+  h2 { color: #ffe9a8; font-size: 17px; margin: 18px 0 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  button { background: var(--card); color: var(--ink); border: 3px solid #7a4a22; border-radius: 12px;
+           padding: 12px 8px; font-size: 16px; font-weight: 700; text-align: left; }
+  button small { display: block; font-weight: 400; font-size: 12px; color: #6b4a3a; margin-top: 2px; }
+  button.on { background: #ffd36b; }
+</style>
+</head>
+<body>
+<h1>鳴き声の試聴</h1>
+<p>押すと、ゲームで鳴る声がそのまま聞こえます。</p>
+<div id="list"></div>
+<script type="module">
+import { VOICE_IDS } from './src/voices.js';
+const NAMES = {
+  m_jump: 'サル: 跳ぶ', m_grab: 'サル: つかむ', m_combo: 'サル: 連続成功', m_loop: 'サル: 大回転',
+  m_kick: 'サル: 幹をける', m_whiff: 'サル: 空振り', m_hurt: 'サル: 水に落ちた', m_fail: 'サル: しっぱい',
+  m_clear: 'サル: クリア', m_bounce: 'サル: はねる', m_scared: 'サル: 水が近い', m_fruit: 'サル: くだもの',
+  b_help: '小ザル: 助けを呼ぶ', b_saved: '小ザル: 助かった',
+  t_grab: 'オオハシ: つかまれた', t_carry: 'オオハシ: 運ぶ', t_tired: 'オオハシ: 疲れた', t_drop: 'オオハシ: 落とす',
+};
+const GROUPS = [['m_', 'サル'], ['b_', '小ザル'], ['t_', 'オオハシ']];
+const list = document.getElementById('list');
+let cur = null;
+for (const [pre, title] of GROUPS) {
+  const h = document.createElement('h2'); h.textContent = title; list.append(h);
+  const grid = document.createElement('div'); grid.className = 'grid'; list.append(grid);
+  for (const id of VOICE_IDS.filter((v) => v.startsWith(pre))) {
+    const b = document.createElement('button');
+    const label = NAMES[id.replace(/\d+$/, '')] || id;
+    b.innerHTML = `${label.split(': ')[1] || label}<small>${id}</small>`;
+    b.onclick = () => {
+      if (cur) { cur.a.pause(); cur.b.classList.remove('on'); }
+      const a = new Audio(`assets/voice/${id}.m4a`);
+      cur = { a, b }; b.classList.add('on');
+      a.onended = () => b.classList.remove('on');
+      a.play();
+    };
+    grid.append(b);
+  }
+}
+</script>
+</body>
+</html>

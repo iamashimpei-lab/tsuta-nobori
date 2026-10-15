@@ -1,4 +1,4 @@
-"""Gemini Live で動物たちの声 (短いセリフ) を録る。声優として演技させ、文字起こしで中身を照合する。
+"""[使わない: 言葉を話す声は不採用。動物の声は make_voices.py で本物の録音から作る] Gemini Live で動物たちの声 (短いセリフ) を録る。声優として演技させ、文字起こしで中身を照合する。
 
 usage: python3 tools/gen_voices.py            出力: tools/out/voices/<id>.pcm と transcript.json
        python3 tools/gen_voices.py <id> ...    指定の声だけ録り直す
