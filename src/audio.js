@@ -16,6 +16,7 @@ export function unlockAudio() {
   }
   // 画面ロックや通知の後は 'interrupted' になる端末がある。どちらでも鳴らし直す
   if (ac.state === 'suspended' || ac.state === 'interrupted') ac.resume().catch(() => {});
+  if (voiceIds.length) loadVoices(voiceIds);
 }
 
 export function setSound(music, sfx) {
@@ -116,6 +117,53 @@ function scheduleStep(t) {
   }
   if (pos % 8 === 0) tone(BASS[(stepIdx / 8 | 0) % 4] / 2, 0.9, { type: 'triangle', gain: 0.22, at, bus: b });
   if (tension > 0.3 && pos % 4 === 0) tone(146.8, 0.3, { type: 'sawtooth', gain: 0.05 * tension, at, bus: b });
+}
+
+// ---- 動物の声 (Gemini で声優として演技させた声)。同じ場面でも毎回少し違う声・高さにする ----
+const VOICE_GROUPS = {
+  jump: ['m_jump1', 'm_jump2', 'm_jump3'], grab: ['m_grab1', 'm_grab2', 'm_grab3'], combo: ['m_combo1', 'm_combo2'],
+  loop: ['m_loop'], kick: ['m_kick1', 'm_kick2'], whiff: ['m_whiff1', 'm_whiff2'], hurt: ['m_hurt1', 'm_hurt2'],
+  fail: ['m_fail'], clear: ['m_clear'], bounce: ['m_bounce'], scared: ['m_scared'], fruit: ['m_fruit1', 'm_fruit2'],
+  help: ['b_help1', 'b_help2'], saved: ['b_saved1', 'b_saved2'],
+  tgrab: ['t_grab'], tcarry: ['t_carry1', 't_carry2'], ttired: ['t_tired'], tdrop: ['t_drop'],
+};
+// 大事な声 (痛い・クリア等) は鳴っている声を止めて割り込む。ふだんの声は間をあける
+const URGENT = new Set(['hurt', 'fail', 'clear', 'saved', 'loop', 'combo', 'tdrop', 'ttired']);
+const voiceBufs = {};
+const speaking = {};
+let voiceIds = [];
+
+export function loadVoices(ids) {
+  voiceIds = ids;
+  if (!ac) return;
+  for (const id of ids) {
+    if (voiceBufs[id]) continue;
+    voiceBufs[id] = 'loading';
+    fetch(`assets/voice/${id}.m4a`).then((r) => r.arrayBuffer())
+      .then((ab) => new Promise((ok, ng) => ac.decodeAudioData(ab, ok, ng)))
+      .then((buf) => { voiceBufs[id] = buf; })
+      .catch(() => { delete voiceBufs[id]; });
+  }
+}
+
+export function voice(group, gain = 1) {
+  if (!ac || !sfxOn) return;
+  const who = group.startsWith('t') ? 'toucan' : (group === 'help' || group === 'saved') ? 'baby' : 'monkey';
+  const now = ac.currentTime;
+  const cur = speaking[who];
+  if (cur && now < cur.end) {
+    if (!URGENT.has(group)) return;
+    try { cur.src.stop(); } catch { /* 止まっている */ }
+  }
+  const ids = (VOICE_GROUPS[group] || []).filter((id) => voiceBufs[id] && voiceBufs[id] !== 'loading');
+  if (!ids.length) return;
+  const buf = voiceBufs[ids[Math.floor(Math.random() * ids.length)]];
+  const src = ac.createBufferSource(); src.buffer = buf;
+  src.playbackRate.value = vary(1, 45);
+  const g = ac.createGain(); g.gain.value = 1.1 * gain;
+  src.connect(g); g.connect(sfxBus);
+  src.start(now);
+  speaking[who] = { src, end: now + buf.duration / src.playbackRate.value };
 }
 
 // ---- 曲 (Gemini の Lyria で作ったもの) をつなぎ目なく繰り返す。読めない時は合成の曲 ----

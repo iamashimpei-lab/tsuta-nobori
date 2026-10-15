@@ -1,7 +1,8 @@
 // つたのぼり: 画面の流れ・入力・保存
 import { createWorld, step, press, lift, stars, STAGES, DT, BODY } from './game.js';
 import { createRenderer } from './render.js';
-import { unlockAudio, sfx, startMusic, setTension, setSound } from './audio.js';
+import { unlockAudio, sfx, startMusic, setTension, setSound, voice, loadVoices } from './audio.js';
+import { VOICE_IDS } from './voices.js';
 import { createBot } from './autoplay.js';
 import { LAST_UPDATE } from './version.js';
 
@@ -33,7 +34,7 @@ const $ = (id) => document.getElementById(id);
 const screens = ['title', 'map', 'hud', 'result', 'village', 'shop', 'pause'];
 function show(...ids) { for (const s of screens) $(s).classList.toggle('hidden', !ids.includes(s)); }
 
-let demoBot = null, autoBot = null, evCursor = 0, lastAlarm = 0;
+let demoBot = null, autoBot = null, evCursor = 0, lastAlarm = 0, lastHelp = 0, wasTense = false;
 const params = new URLSearchParams(location.search);
 let world = null, mode = 'title', stageIndex = 0, acc = 0, last = performance.now(), visT = 0, resultShown = false, tutorialStep = 0;
 
@@ -56,7 +57,7 @@ function startStage(i) {
 // ---- 入力: どこを押しても良い。押した場所へロープ、離すと飛ぶ ----
 let activePointer = null;
 canvas.addEventListener('pointerdown', (e) => {
-  unlockAudio(); startMusic(mode === 'play' ? 'play' : 'home');
+  unlockAudio(); loadVoices(VOICE_IDS); startMusic(mode === 'play' ? 'play' : 'home');
   if (mode !== 'play') return;
   // 前の指の「離した」が届かなかった時は、ここで離したことにしてから新しい指を受ける
   if (activePointer !== null && activePointer !== e.pointerId) lift(world);
@@ -150,10 +151,10 @@ function renderShop() {
 }
 
 for (const [id, fn] of [['play', openMap], ['tovillage', openVillage], ['toshop', openShop], ['mapback', openTitle], ['villageback', openTitle], ['shopback', openTitle], ['mapvillage', openVillage]]) {
-  $(id).addEventListener('click', () => { unlockAudio(); startMusic('home'); sfx.tap(); fn(); });
+  $(id).addEventListener('click', () => { unlockAudio(); loadVoices(VOICE_IDS); startMusic('home'); sfx.tap(); fn(); });
 }
 $('soundbtn').addEventListener('click', () => {
-  unlockAudio();
+  unlockAudio(); loadVoices(VOICE_IDS);
   save.music = !save.music; save.sfx = save.music; setSound(save.music, save.sfx); writeSave();
   $('soundbtn').textContent = save.music ? 'おと：あり' : 'おと：なし';
 });
@@ -227,9 +228,33 @@ function tutorial() {
   el.innerHTML = msgs[k];
 }
 
-// ---- 出来事 → 音 ----
+// ---- 出来事 → 音と声 ----
+function playVoice(e) {
+  const r = Math.random();
+  switch (e.type) {
+    case 'release': if (r < 0.55) voice('jump'); break;
+    case 'attach':
+      if (e.kind === 'bird') { voice('tgrab'); setTimeout(() => { if (world && world.m.anchor && world.m.anchor.kind === 'bird') voice('tcarry'); }, 1100); }
+      else if (e.combo >= 4 && e.combo % 2 === 0) voice('combo');
+      else if (r < 0.45) voice('grab');
+      break;
+    case 'loop': voice('loop'); break;
+    case 'kick': voice('kick'); break;
+    case 'whiff': voice('whiff'); break;
+    case 'splash': voice('hurt'); break;
+    case 'fail': voice('fail'); break;
+    case 'clear': voice('clear'); break;
+    case 'bounce': voice('bounce'); break;
+    case 'fruit': if (r < 0.35) voice('fruit', 0.8); break;
+    case 'baby': voice('saved'); break;
+    case 'birdTired': voice('ttired'); break;
+    case 'birdDrop': voice('tdrop'); break;
+  }
+}
+
 function playEvents(evs) {
   for (const e of evs) {
+    playVoice(e);
     switch (e.type) {
       case 'fire': sfx.fire(); break;
       case 'attach': sfx.attach(e.combo, e.kind); break;
@@ -298,6 +323,13 @@ function frameBody(now) {
     setTension(tension);
     // 水が近い時の警告音 (曲とは別に鳴らす)
     if (tension > 0.6 && now - lastAlarm > 420) { lastAlarm = now; sfx.alarm(); }
+    if (tension > 0.6 && !wasTense) voice('scared');
+    wasTense = tension > 0.6;
+    // 画面に子ザルが見えている間、ときどき「たすけてー！」
+    if (!world.baby && world.state === 'play' && now - lastHelp > 5200) {
+      const b = world.anchors.find((a) => a.baby);
+      if (b && Math.abs(b.y - R.camY) < R.viewH * 0.5) { lastHelp = now; voice('help', 0.9); }
+    }
     if (world.state !== 'play' && !resultShown && world.t - (world.clearT ?? world.t) >= 0) {
       if (!world._endAt) world._endAt = world.t;
       // 終わった後も少し世界を動かして余韻を見せる

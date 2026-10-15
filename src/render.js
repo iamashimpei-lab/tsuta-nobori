@@ -2,6 +2,7 @@
 // 色の役割 (550 Atelier の手順より): サル = 暖色 / つかめる物 = 黄色い光の輪 / 危険 = ピンク・赤 / 背景 = 暗く彩度低め
 // 影は黒を混ぜず、色相を紫・青緑へずらして暗くする。一番明るいのはサル、次につかめる物、背景が一番暗い
 import { WORLD_W, WALL_L, WALL_R, BODY, anchorPos, grabPoint, grabbable } from './game.js';
+import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite } from './art.js';
 
 const FONT = '"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif';
 const PAL = {
@@ -27,7 +28,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
-  const R = { scale: 1, dpr: 1, viewH: 900, camY: 0, camInit: false, shake: 0, particles: [], texts: [], flash: 0, squash: 1, stretch: 0, ringT: -9, hint: null };
+  const R = { last: {}, scale: 1, dpr: 1, viewH: 900, camY: 0, camInit: false, shake: 0, particles: [], texts: [], flash: 0, squash: 1, stretch: 0, ringT: -9, hint: null };
 
   R.resize = () => {
     R.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -37,11 +38,13 @@ export function createRenderer(canvas) {
     R.viewH = ch / R.scale;
   };
 
-  R.reset = () => { R.camInit = false; R.particles = []; R.texts = []; R.flash = 0; R.shake = 0; R.hint = null; R.ringT = -9; R.squash = 1; };
+  R.reset = () => { R.last = {}; R.camInit = false; R.particles = []; R.texts = []; R.flash = 0; R.shake = 0; R.hint = null; R.ringT = -9; R.squash = 1; };
 
   // ---- 出来事から演出を作る ----
   R.onEvents = (w, evs) => {
     for (const e of evs) {
+      R.last[e.type] = w.t;
+      if (e.type === 'release' && e.nice) R.last.nice = w.t;
       if (e.type === 'attach') {
         burst(e.x, e.y, 12, ['#7fd16a', '#4fae55', '#b8ea7a'], 320, 0.7, 'leaf');
         R.squash = 0.72;
@@ -111,78 +114,92 @@ export function createRenderer(canvas) {
     R.camY += (ty - R.camY) * Math.min(1, dt * 5);
   }
 
+  // 手前の葉 (視差 1.25、両端の幹の上だけ) と光の粒
+  function foreground(t) {
+    const top = R.camY - R.viewH / 2;
+    const fr = frondSprite('#0a2219');
+    const par = 1.25, SP = 520;
+    const base = -R.camY * (par - 1);
+    const k0 = Math.floor((top - base - 200) / SP), k1 = Math.floor((top + R.viewH - base + 200) / SP);
+    for (let k = k0; k <= k1; k++) {
+      const y = base + k * SP + hash(k) * 160;
+      const left = k % 2 === 0;
+      ctx.save(); ctx.translate(left ? -70 : WORLD_W + 70, y);
+      if (!left) ctx.scale(-1, 1);
+      ctx.rotate(-0.25 + hash(k + 3) * 0.5 + Math.sin(t * 0.8 + k) * 0.04);
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(fr, 0, -120 * 0.75, 300 * 0.75, 240 * 0.75);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 18; k++) {
+      const x = (hash(k * 3.1) * WORLD_W + Math.sin(t * 0.4 + k) * 40);
+      const y = top + ((hash(k * 7.7) * R.viewH - t * (8 + hash(k) * 14)) % R.viewH + R.viewH) % R.viewH;
+      const a = 0.25 + 0.25 * Math.sin(t * 2 + k);
+      ctx.fillStyle = `rgba(255,240,170,${a})`;
+      ctx.beginPath(); ctx.arc(x, y, 2 + hash(k + 1) * 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // ---- 背景 ----
+  const BD_H = 1600;
+  let backdrops = null, trunks = null;
   function background(w, t) {
+    if (!backdrops) backdrops = [makeBackdrop(WORLD_W, BD_H, 0), makeBackdrop(WORLD_W, BD_H, 1)];
     const top = R.camY - R.viewH / 2;
     const prog = clamp(-R.camY / -w.goalY, 0, 1);
     const g = ctx.createLinearGradient(0, top, 0, top + R.viewH);
-    g.addColorStop(0, mixHex('1c4436', 'e9c977', Math.pow(prog, 1.8)));
-    g.addColorStop(0.6, mixHex('12302a', '6e9a5a', Math.pow(prog, 1.5)));
-    g.addColorStop(1, mixHex('0b1f22', '35634a', prog));
+    g.addColorStop(0, mixHex('2c6a5a', 'f2d88a', Math.pow(prog, 1.6)));
+    g.addColorStop(0.6, mixHex('17423a', '8fbf74', Math.pow(prog, 1.4)));
+    g.addColorStop(1, mixHex('0c2626', '3f7454', prog));
     ctx.fillStyle = g; ctx.fillRect(-40, top - 40, WORLD_W + 80, R.viewH + 80);
-    // 光の筋
+    // 光の筋 (奥)
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (let k = 0; k < 6; k++) {
       const x0 = k * 260 - 200 + Math.sin(t * 0.2 + k) * 20;
-      ctx.fillStyle = `rgba(255,236,170,${0.025 + 0.05 * prog})`;
+      ctx.fillStyle = `rgba(255,236,170,${0.03 + 0.05 * prog})`;
       ctx.beginPath(); ctx.moveTo(x0, top - 40); ctx.lineTo(x0 + 110, top - 40); ctx.lineTo(x0 + 420, top + R.viewH + 40); ctx.lineTo(x0 + 240, top + R.viewH + 40); ctx.fill();
     }
     ctx.restore();
-    // 奥の幹 (視差)。暗く、青緑寄り
-    for (const [par, col, wb, sp, al] of [[0.35, '0e2a2a', 46, 230, 0.6], [0.65, '173a32', 70, 330, 0.85]]) {
-      const oy = R.camY * (1 - par);
-      for (let n = -1; n < WORLD_W / sp + 2; n++) {
-        const x = n * sp + hash(n * 3.1 + par) * sp * 0.6;
-        const wd = wb + hash(n + par * 9) * wb;
-        ctx.globalAlpha = al;
-        ctx.fillStyle = mixHex(col, '4d6e4a', prog * 0.5);
-        ctx.fillRect(x - wd / 2, top - 40, wd, R.viewH + 80);
-        ctx.fillStyle = 'rgba(20,10,40,0.22)';
-        const off = ((oy * 1) % 110 + 110) % 110;
-        for (let yy = top - 110; yy < top + R.viewH + 110; yy += 110) ctx.fillRect(x - wd / 2 + wd * 0.18, yy - off + top % 110, wd * 0.12, 54);
-        ctx.strokeStyle = 'rgba(70,130,70,0.45)'; ctx.lineWidth = 3;
-        ctx.beginPath();
-        for (let yy = top - 40; yy <= top + R.viewH + 40; yy += 24) ctx.lineTo(x + wd * 0.55 + Math.sin((yy + oy) * 0.02 + n) * 12, yy);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
+    // 奥 (0.3) と中 (0.6) の森の絵
+    for (const [img, par] of [[backdrops[0], 0.3], [backdrops[1], 0.6]]) {
+      const base = R.camY * (1 - par);
+      const k0 = Math.floor((top - 40 - base) / BD_H), k1 = Math.floor((top + R.viewH + 40 - base) / BD_H);
+      for (let k = k0; k <= k1; k++) ctx.drawImage(img, 0, base + k * BD_H, WORLD_W, BD_H);
+    }
+    // 上へ行くほど日が差す色に
+    ctx.fillStyle = `rgba(255,220,140,${0.18 * prog})`; ctx.fillRect(-40, top - 40, WORLD_W + 80, R.viewH + 80);
+    // 霧の帯 (ゆっくり流れる)
+    for (let k = 0; k < 3; k++) {
+      const yy = top + ((k * 0.37 + t * 0.01) % 1) * R.viewH;
+      const fg = ctx.createLinearGradient(0, yy - 60, 0, yy + 60);
+      fg.addColorStop(0, 'rgba(200,240,220,0)'); fg.addColorStop(0.5, `rgba(200,240,220,${0.07 + 0.05 * prog})`); fg.addColorStop(1, 'rgba(200,240,220,0)');
+      ctx.fillStyle = fg; ctx.fillRect(-40, yy - 60, WORLD_W + 80, 120);
     }
   }
 
   // 両側の大きな幹 (壁)
+  const TR_W = 130, TR_H = 700;
   function walls(t) {
+    if (!trunks) trunks = [makeTrunk(TR_W, TR_H, 0), makeTrunk(TR_W, TR_H, 1)];
     const top = R.camY - R.viewH / 2;
-    for (const side of [0, 1]) {
-      const x0 = side ? WALL_R + 8 : -60, wd = WALL_L + 52;
-      const g = ctx.createLinearGradient(x0, 0, x0 + wd, 0);
-      g.addColorStop(side ? 1 : 0, PAL.barkShade); g.addColorStop(0.5, PAL.bark); g.addColorStop(side ? 0 : 1, PAL.barkLight);
-      ctx.fillStyle = g; ctx.fillRect(x0, top - 40, wd, R.viewH + 80);
-      ctx.strokeStyle = 'rgba(40,20,50,0.35)'; ctx.lineWidth = 4;
-      const off = ((R.camY % 140) + 140) % 140;
-      for (let yy = top - 140; yy < top + R.viewH + 140; yy += 140) {
-        ctx.beginPath(); ctx.moveTo(x0 + 10, yy - off); ctx.quadraticCurveTo(x0 + wd / 2, yy - off + 30, x0 + wd - 10, yy - off + 6); ctx.stroke();
-      }
-      // こけ
-      ctx.fillStyle = 'rgba(110,190,90,0.5)';
-      for (let yy = top - 200; yy < top + R.viewH + 200; yy += 200) {
-        const k = Math.floor((yy + R.camY) / 200);
-        ctx.beginPath(); ctx.ellipse(side ? WALL_R + 14 : WALL_L - 6, yy - (((R.camY % 200) + 200) % 200) + hash(k + side) * 80, 14, 34, 0, 0, Math.PI * 2); ctx.fill();
-      }
+    const k0 = Math.floor((top - 40) / TR_H), k1 = Math.floor((top + R.viewH + 40) / TR_H);
+    for (let k = k0; k <= k1; k++) {
+      ctx.drawImage(trunks[0], WALL_L + 14 - TR_W, k * TR_H, TR_W, TR_H);
+      ctx.drawImage(trunks[1], WALL_R - 14, k * TR_H, TR_W, TR_H);
+    }
+    // 幹のふちの影 (内側へ落ちる影)
+    for (const [x, dir] of [[WALL_L + 14, 1], [WALL_R - 14, -1]]) {
+      const g = ctx.createLinearGradient(x, 0, x + dir * 40, 0);
+      g.addColorStop(0, 'rgba(10,20,25,0.45)'); g.addColorStop(1, 'rgba(10,20,25,0)');
+      ctx.fillStyle = g; ctx.fillRect(dir > 0 ? x : x - 40, top - 40, 40, R.viewH + 80);
     }
   }
 
-  function leafBlob(x, y, r, seed, light = 0) {
-    // 影 (青緑) → 中間色 → 明るい葉 → ハイライト の順に重ねる
-    const layers = [[PAL.leafShade, 0.12, 1.0], [PAL.leafMid, 0.0, 0.92], [PAL.leaf, -0.1, 0.8], [PAL.leafLight, -0.22, 0.5]];
-    for (const [col, dy, rs] of layers) {
-      ctx.fillStyle = col;
-      for (let k = 0; k < 6; k++) {
-        const a = hash(seed * 7 + k) * Math.PI * 2, d = hash(seed * 11 + k) * r * 0.55;
-        const rr = r * rs * (0.42 + hash(seed * 13 + k) * 0.3);
-        ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d * 0.55 + dy * r, rr, rr * 0.78, 0, 0, Math.PI * 2); ctx.fill();
-      }
-    }
-    if (light) { ctx.fillStyle = `rgba(255,255,200,${0.25 * light})`; ctx.beginPath(); ctx.ellipse(x - r * 0.2, y - r * 0.4, r * 0.4, r * 0.18, -0.3, 0, Math.PI * 2); ctx.fill(); }
+  function leafBlob(x, y, r, seed) {
+    drawLeaves(ctx, x, y, r * 1.15, Math.abs(Math.round(seed)), Math.abs(Math.round(seed)) % 5 === 0);
   }
 
   function grabRing(x, y, t, id, strong) {
@@ -211,14 +228,8 @@ export function createRenderer(canvas) {
       const shake = a.kind === 'thin' && a.crack ? Math.sin(t * 60) * a.crack * 1.5 : 0;
       ctx.save(); ctx.translate(shake, 0);
       if (!(a.kind === 'thin' && a.broken)) {
-        ctx.lineCap = 'round';
-        const thick = a.kind === 'thin' ? 6 : 15 * Math.min(1.3, big);
-        ctx.strokeStyle = PAL.barkShade; ctx.lineWidth = thick + 4;
-        ctx.beginPath(); ctx.moveTo(wx, p.y - 60); ctx.quadraticCurveTo((wx + p.x) / 2, p.y - 70, p.x, p.y); ctx.stroke();
-        ctx.strokeStyle = a.kind === 'thin' ? '#a77a4a' : PAL.bark; ctx.lineWidth = thick;
-        ctx.beginPath(); ctx.moveTo(wx, p.y - 62); ctx.quadraticCurveTo((wx + p.x) / 2, p.y - 72, p.x, p.y - 2); ctx.stroke();
-        ctx.strokeStyle = PAL.barkLight; ctx.lineWidth = thick * 0.3;
-        ctx.beginPath(); ctx.moveTo(wx, p.y - 66); ctx.quadraticCurveTo((wx + p.x) / 2, p.y - 76, p.x, p.y - 5); ctx.stroke();
+        const thick = a.kind === 'thin' ? 9 : 26 * Math.min(1.3, big);
+        drawBranch(ctx, wx, p.y - 60, (wx + p.x) / 2, p.y - 74, p.x, p.y - 4, thick, a.kind === 'thin' ? 4 : 9, a.id + 1);
         if (a.kind === 'thin' && a.crack) {
           // ひび (危険 = ピンク)
           ctx.strokeStyle = PAL.danger; ctx.lineWidth = 3;
@@ -226,8 +237,8 @@ export function createRenderer(canvas) {
           for (let k = 0; k < a.crack; k++) { ctx.beginPath(); ctx.moveTo(cx + k * 14 - 6, cy - 8); ctx.lineTo(cx + k * 14, cy); ctx.lineTo(cx + k * 14 - 4, cy + 9); ctx.stroke(); }
         }
         if (a.kind === 'thin') {
-          ctx.fillStyle = PAL.leaf;
-          for (let k = 0; k < 4; k++) { const u = 0.35 + k * 0.17; ctx.beginPath(); ctx.ellipse(lerp(wx, p.x, u), p.y - 62 - 14, 13, 6, -0.4 * side, 0, Math.PI * 2); ctx.fill(); }
+          leafBlob(lerp(wx, p.x, 0.75), p.y - 70, 22, a.id + 7);
+          leafBlob(p.x, p.y - 14, 20, a.id + 8);
         } else {
           leafBlob(lerp(wx, p.x, 0.55), p.y - 70 - r * 0.2, r * 0.8, a.id + 3, 1);
           leafBlob(p.x, p.y - r * 0.35, r, a.id + 51, 1);
@@ -295,23 +306,9 @@ export function createRenderer(canvas) {
       if (a.kind !== 'bird') continue;
       const p = anchorPos(w, a);
       if (!inView(p.y, 150)) continue;
-      const tired = a.tired && a.mode === 'carry';
-      const flap = Math.sin(t * (tired ? 34 : 18) + a.phase) * 0.9;
-      ctx.save(); ctx.translate(p.x, p.y); ctx.scale(p.dir || 1, 1);
-      // 体 (寒色だが味方。つかめる時は黄色い輪がつく)
-      ctx.fillStyle = '#2a6fc4'; ctx.beginPath(); ctx.ellipse(0, 0, 38, 23, -0.12, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#1b4a8a'; ctx.beginPath(); ctx.ellipse(-6, 8, 30, 12, -0.12, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#f2f6ff'; ctx.beginPath(); ctx.ellipse(8, 9, 22, 11, -0.15, 0, Math.PI * 2); ctx.fill();
-      ctx.save(); ctx.rotate(-0.4 + flap); ctx.fillStyle = '#3d86dd'; ctx.beginPath(); ctx.ellipse(-8, -18, 34, 12, -0.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      ctx.fillStyle = '#ffb02e'; ctx.beginPath(); ctx.moveTo(36, -6); ctx.lineTo(58, 0); ctx.lineTo(36, 5); ctx.fill();
-      ctx.fillStyle = '#121212'; ctx.beginPath(); ctx.arc(24, -7, 4.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(25.5, -8.5, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#2a6fc4'; ctx.beginPath(); ctx.moveTo(-36, -2); ctx.lineTo(-60, -14); ctx.lineTo(-56, 10); ctx.fill();
-      if (tired) { ctx.fillStyle = '#bfe7ff'; ctx.beginPath(); ctx.ellipse(34, -26, 5, 8, 0.4, 0, Math.PI * 2); ctx.fill(); }
+      ctx.save(); ctx.translate(p.x, p.y + 4); ctx.scale(1.15, 1.15);
+      drawToucan(ctx, t, { dir: p.dir || 1, tired: a.tired && a.mode === 'carry', phase: a.phase });
       ctx.restore();
-      // 足 (つかむ所)
-      ctx.strokeStyle = '#ffb02e'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(p.x - 4, p.y + 18); ctx.lineTo(p.x - 4, p.y + 28); ctx.stroke();
       if (grabbable(w, a)) grabRing(p.x, p.y + 4, t, a.phase, Math.hypot(p.x - m.x, p.y - m.y) < 360);
     }
   }
@@ -339,23 +336,11 @@ export function createRenderer(canvas) {
       if (f.got || !inView(f.y, 60)) continue;
       const y = f.y + Math.sin(t * 3 + f.x) * 6;
       ctx.save(); ctx.translate(f.x, y);
-      ctx.fillStyle = 'rgba(255,240,150,0.18)'; ctx.beginPath(); ctx.arc(0, 0, 34, 0, Math.PI * 2); ctx.fill();
-      if (f.kind === 0) {
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#d99a1e'; ctx.lineWidth = 15; ctx.beginPath(); ctx.arc(0, -10, 20, 0.5, 2.6); ctx.stroke();
-        ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(0, -12, 20, 0.6, 2.5); ctx.stroke();
-        ctx.strokeStyle = '#5b3a1a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-18, 1); ctx.lineTo(-22, -4); ctx.stroke();
-      } else if (f.kind === 1) {
-        ctx.fillStyle = '#d9542e'; ctx.beginPath(); ctx.ellipse(1, 2, 17, 20, 0.4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ffa21c'; ctx.beginPath(); ctx.ellipse(-2, 0, 15, 18, 0.4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ffe08a'; ctx.beginPath(); ctx.ellipse(-6, -6, 5, 7, 0.4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.ellipse(-4, -20, 9, 4, -0.5, 0, Math.PI * 2); ctx.fill();
-      } else {
-        ctx.fillStyle = '#b8243a'; ctx.beginPath(); ctx.moveTo(-17, -6); ctx.quadraticCurveTo(0, 38, 17, -6); ctx.quadraticCurveTo(0, -16, -17, -6); ctx.fill();
-        ctx.fillStyle = '#ff4d5e'; ctx.beginPath(); ctx.moveTo(-15, -6); ctx.quadraticCurveTo(-2, 30, 12, -6); ctx.quadraticCurveTo(0, -14, -15, -6); ctx.fill();
-        ctx.fillStyle = '#ffe3a0'; for (let k = 0; k < 5; k++) ctx.fillRect(-8 + (k % 3) * 7, -1 + Math.floor(k / 3) * 9, 2, 3);
-        ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.ellipse(0, -11, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
-      }
+      const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 38);
+      g.addColorStop(0, 'rgba(255,245,170,0.55)'); g.addColorStop(1, 'rgba(255,245,170,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.fill();
+      ctx.rotate(Math.sin(t * 2 + f.x) * 0.15); ctx.scale(1.25, 1.25);
+      drawFruit(ctx, f.kind, t);
       ctx.restore();
     }
   }
@@ -433,124 +418,89 @@ export function createRenderer(canvas) {
 
   // サル: 原点 = 手 (ロープの先)。体は下にぶら下がる
   function monkeyBody(t, o) {
-    const flying = o.mode === 'fly';
-    const lw = 9;
-    ctx.lineCap = 'round';
-    // しっぽ
-    ctx.strokeStyle = PAL.furShade; ctx.lineWidth = 7;
-    const sw = Math.sin(t * 6) * 8;
-    ctx.beginPath(); ctx.moveTo(-4, 84); ctx.bezierCurveTo(-32, 116, -66 + sw, 100, -60 + sw, 72);
-    ctx.arc(-50 + sw, 72, 10, Math.PI, Math.PI * 2.4); ctx.stroke();
-    // 腕
-    if (o.mode === 'baby') {
-      ctx.strokeStyle = PAL.fur; ctx.lineWidth = lw;
-      ctx.beginPath(); ctx.moveTo(-12, 50); ctx.lineTo(-24, 66); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(12, 50); ctx.lineTo(30, 26 + o.wave * 10); ctx.stroke();
-    } else if (o.mode === 'stand') {
-      ctx.strokeStyle = PAL.fur; ctx.lineWidth = lw;
-      ctx.beginPath(); ctx.moveTo(-12, 50); ctx.lineTo(-26, 72); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(12, 50); ctx.lineTo(26, 72); ctx.stroke();
-    } else {
-      ctx.strokeStyle = PAL.furShade; ctx.lineWidth = lw;
-      ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(-12, 42); ctx.stroke();
-      ctx.strokeStyle = PAL.fur;
-      ctx.beginPath(); ctx.moveTo(3, 0); ctx.lineTo(flying ? 30 : 12, flying ? 30 : 42); ctx.stroke();
-      ctx.fillStyle = PAL.skin; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, Math.PI * 2); ctx.fill();
-    }
-    // 体 (影は紫寄り)
-    ctx.fillStyle = PAL.furShade; ctx.beginPath(); ctx.ellipse(2, 70, 19, 25, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = PAL.fur; ctx.beginPath(); ctx.ellipse(0, 67, 18, 24, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = PAL.skin; ctx.beginPath(); ctx.ellipse(0, 71, 11, 16, 0, 0, Math.PI * 2); ctx.fill();
-    // 足
-    ctx.strokeStyle = PAL.fur; ctx.lineWidth = lw;
-    const kick = flying ? 12 : Math.sin(t * 7) * 4;
-    ctx.beginPath(); ctx.moveTo(-9, 86); ctx.lineTo(-15 - kick, 104); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(9, 86); ctx.lineTo(15 + kick, 104); ctx.stroke();
-    // 帽子より先に耳
-    ctx.fillStyle = PAL.fur;
-    ctx.beginPath(); ctx.arc(-28, 30, 11, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(28, 30, 11, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = PAL.skinShade;
-    ctx.beginPath(); ctx.arc(-28, 30, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(28, 30, 6, 0, Math.PI * 2); ctx.fill();
-    // 頭
-    ctx.fillStyle = PAL.furShade; ctx.beginPath(); ctx.ellipse(2, 32, 26, 25, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = PAL.fur; ctx.beginPath(); ctx.ellipse(0, 30, 26, 25, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = PAL.furLight; ctx.beginPath(); ctx.ellipse(-8, 14, 12, 6, -0.3, 0, Math.PI * 2); ctx.fill();
-    // 顔 (ハート形)
-    ctx.fillStyle = PAL.skin;
-    ctx.beginPath(); ctx.arc(-9, 28, 10.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(9, 28, 10.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(0, 41, 15, 11, 0, 0, Math.PI * 2); ctx.fill();
-    // 目
-    ctx.fillStyle = '#1a1220';
-    if (o.happy) {
-      ctx.lineWidth = 3; ctx.strokeStyle = '#1a1220';
-      ctx.beginPath(); ctx.arc(-9, 30, 5, Math.PI, 0); ctx.stroke();
-      ctx.beginPath(); ctx.arc(9, 30, 5, Math.PI, 0); ctx.stroke();
-    } else {
-      const r = o.scared ? 7.5 : 6;
-      ctx.beginPath(); ctx.ellipse(-9, 29, r * 0.78, r, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(9, 29, r * 0.78, r, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(-7, 26, 2.3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(11, 26, 2.3, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.fillStyle = '#6b3b2a';
-    ctx.beginPath(); ctx.arc(-2.5, 38, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(2.5, 38, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#6b3b2a'; ctx.lineWidth = 2.2;
-    if (o.scared) { ctx.beginPath(); ctx.ellipse(0, 46, 4, 5, 0, 0, Math.PI * 2); ctx.stroke(); }
-    else { ctx.beginPath(); ctx.arc(0, 42, 6, 0.2, Math.PI - 0.2); ctx.stroke(); }
-    ctx.fillStyle = 'rgba(255,120,140,0.4)';
-    ctx.beginPath(); ctx.ellipse(-17, 38, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(17, 38, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
-    if (o.scared) { ctx.fillStyle = '#9fd8ff'; ctx.beginPath(); ctx.ellipse(26, 16, 4, 7, 0.3, 0, Math.PI * 2); ctx.fill(); }
-    if (o.hat) hat(o.hat);
+    const pose = o.mode === 'fly' ? 'fly' : o.mode === 'stand' ? 'stand' : o.mode === 'baby' ? 'baby' : 'hang';
+    const mood = o.mood || (o.happy ? 'happy' : o.scared ? 'scared' : pose === 'fly' ? 'excited' : 'normal');
+    drawMonkey(ctx, { pose, mood, t, hat: o.hat, wave: o.wave, arms: o.arms, legs: o.legs, look: o.look, ear: o.ear });
   }
 
-  function hat(kind) {
-    if (kind === 'leaf') {
-      ctx.fillStyle = '#4fae55'; ctx.beginPath(); ctx.ellipse(0, 6, 22, 9, -0.2, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#2f7a3a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-18, 9); ctx.lineTo(18, 3); ctx.stroke();
-    } else if (kind === 'flower') {
-      for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; ctx.fillStyle = '#ff8fb0'; ctx.beginPath(); ctx.arc(14 + Math.cos(a) * 8, 8 + Math.sin(a) * 8, 6, 0, Math.PI * 2); ctx.fill(); }
-      ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(14, 8, 5, 0, Math.PI * 2); ctx.fill();
-    } else if (kind === 'crown') {
-      ctx.fillStyle = '#ffcc33'; ctx.beginPath();
-      ctx.moveTo(-18, 10); ctx.lineTo(-18, -6); ctx.lineTo(-9, 3); ctx.lineTo(0, -10); ctx.lineTo(9, 3); ctx.lineTo(18, -6); ctx.lineTo(18, 10); ctx.fill();
-      ctx.fillStyle = '#ff4f7b'; ctx.beginPath(); ctx.arc(0, 4, 3.5, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
+  // サルの動き: 出来事のあとしばらくの「表情・手足・回転」を決める
   function monkey(w, t) {
     const m = w.m;
+    const since = (k) => t - (R.last[k] ?? -99);
     let ang = 0;
     if (m.mode === 'hang' && m.anchor) {
       const p = anchorPos(w, m.anchor);
       ang = Math.atan2(m.x - p.x, m.y - p.y);
     } else if (m.mode === 'fly') ang = clamp(-m.vx / 1700, -0.8, 0.8) * -1;
-    const scared = w.water - m.y < 260 && w.state === 'play';
-    ctx.save(); ctx.translate(m.x, m.y);
+    const nearWater = w.water - m.y < 260 && w.state === 'play';
+    const sp = Math.hypot(m.vx, m.vy);
+    const o = { mode: m.mode, hat: w.hat, look: [clamp(m.vx / 900, -1, 1), clamp(m.vy / 900, -1, 1)] };
+    // 表情と手足
+    if (w.state === 'clear') { o.happy = true; o.arms = 'cheer'; o.legs = 'tuck'; }
+    else if (since('splash') < 1.2) { o.mood = 'hurt'; o.arms = 'flail'; o.legs = 'flail'; }
+    else if (since('whiff') < 0.8) { o.mood = 'confused'; }
+    else if (nearWater) { o.scared = true; }
+    if (m.mode === 'hang' && !o.arms) {
+      if (since('attach') < 0.35) { o.legs = 'tuck'; o.ear = 1; o.mood = o.mood || 'excited'; }
+      else o.legs = 'dangle';
+    } else if (m.mode === 'fly' && !o.arms) {
+      if (m.vy > 450) { o.arms = 'flail'; o.legs = 'flail'; o.scared = true; }
+      else { o.legs = 'tuck'; if (since('nice') < 0.6) o.arms = 'cheer'; }
+    } else if (m.mode === 'stand') {
+      o.legs = m.walking ? 'walk' : undefined;
+      o.look = [Math.sin(t * 0.9) > 0 ? 0.9 : -0.9, -0.3];
+      if (!m.walking && Math.sin(t * 0.7) > 0.8) o.arms = 'scratch';
+    }
+    ctx.save();
+    // 地面: ぴょこぴょこ / ゴール: 小さく跳ねて踊る
+    let bob = 0;
+    if (m.mode === 'stand') bob = -Math.abs(Math.sin(t * (m.walking ? 12 : 3))) * (m.walking ? 6 : 3);
+    if (w.state === 'clear') bob = -Math.abs(Math.sin(t * 8)) * 14;
+    ctx.translate(m.x, m.y + bob);
+    // 水が近いと震える
+    if (nearWater && m.mode !== 'fly') ctx.translate(Math.sin(t * 60) * 1.5, 0);
     ctx.rotate(m.mode === 'hang' ? -ang : ang * 0.6);
+    // 上手に離した時は宙返り (体の真ん中を中心に 1 回転)
+    const ds = since('nice');
+    if (m.mode === 'fly' && ds < 0.5) { ctx.translate(0, 50); ctx.rotate(-Math.sign(m.vx || 1) * (ds / 0.5) * Math.PI * 2); ctx.translate(0, -50); }
+    if (w.state === 'clear') ctx.rotate(Math.sin(t * 8) * 0.18);
     // つぶれ・のび
     R.squash += (1 - R.squash) * 0.18;
-    const sp = Math.hypot(m.vx, m.vy);
     const st = m.mode === 'fly' ? clamp(sp / 2600, 0, 0.18) : 0;
     ctx.scale((1 - st * 0.5) * (2 - R.squash), (1 + st) * R.squash);
-    if (m.mode === 'stand') ctx.translate(0, 0);
     // ふち光 (主役を一番明るく)
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,200,120,0.10)';
     ctx.beginPath(); ctx.ellipse(0, 50, 46, 70, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    monkeyBody(t, { mode: m.mode, scared, happy: w.state === 'clear', hat: w.hat });
-    if (w.baby) { ctx.save(); ctx.translate(-26, 52); ctx.scale(0.4, 0.4); monkeyBody(t, { mode: 'baby', wave: Math.sin(t * 8) }); ctx.restore(); }
+    monkeyBody(t, o);
+    if (w.baby) { ctx.save(); ctx.translate(-26, 52); ctx.scale(0.4, 0.4); monkeyBody(t, { mode: 'baby', wave: Math.sin(t * 8), happy: true }); ctx.restore(); }
     ctx.restore();
+    // 頭の上: 空振りの「？」、水に落ちた後の目が回る星とずぶぬれのしずく
+    if (since('whiff') < 0.8) txt('？', m.x + 34, m.y - 10 - since('whiff') * 20, 44, '#ffffff', '#3a1d2a');
+    const dsp = since('splash');
+    if (dsp < 1.2) {
+      for (let k = 0; k < 3; k++) {
+        const a = t * 7 + k * 2.1;
+        ctx.fillStyle = '#ffe14d';
+        star(m.x + Math.cos(a) * 30, m.y + 8 + Math.sin(a) * 9, 7);
+      }
+      for (let k = 0; k < 4; k++) {
+        const u = ((dsp * 1.6 + k * 0.25) % 1);
+        ctx.fillStyle = `rgba(160,220,255,${1 - u})`;
+        ctx.beginPath(); ctx.ellipse(m.x - 20 + k * 13, m.y + 40 + u * 60, 3, 5, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
     // 手を離した瞬間の輪
     const d = t - R.ringT;
     if (d >= 0 && d < 0.5) {
       ctx.strokeStyle = `rgba(255,214,64,${1 - d / 0.5})`; ctx.lineWidth = 6;
       ctx.beginPath(); ctx.arc(m.x, m.y + 40, 30 + d * 140, 0, Math.PI * 2); ctx.stroke();
     }
+  }
+
+  function star(x, y, r) {
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    ctx.closePath(); ctx.strokeStyle = '#7a4a00'; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
   }
 
   function particlesDraw(w, dt) {
@@ -660,6 +610,7 @@ export function createRenderer(canvas) {
     particlesDraw(w, dt);
     aimHint(w, t);
     water(w, t);
+    foreground(t);
     ctx.setTransform(R.dpr, 0, 0, R.dpr, 0, 0);
     screenFx(w, t);
   };
