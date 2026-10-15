@@ -1,6 +1,6 @@
 // オフライン用: 最初に開いた時に全部のファイルを保存し、以後はネットがなくても開ける。
 // 中身を直したら VERSION を上げる (古い保存を捨てて取り直す)
-const VERSION = 'tsuta-202610151922';
+const VERSION = 'tsuta-202610151928';
 const ASSETS = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.png',
   'src/main.js', 'src/game.js', 'src/render.js', 'src/audio.js', 'src/autoplay.js', 'src/version.js',
   'src/art.js', 'src/voices.js',
