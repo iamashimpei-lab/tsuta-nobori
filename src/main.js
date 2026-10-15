@@ -155,6 +155,7 @@ $('soundbtn').textContent = save.music ? 'おと：あり' : 'おと：なし';
 // ---- 結果 ----
 function showResult() {
   resultShown = true;
+  mode = 'result';
   const w = world, st = STAGES[stageIndex];
   show('hud', 'result');
   const clear = w.state === 'clear';
@@ -273,6 +274,8 @@ function frame(now) {
       world.t += dt;
       if (world.t - world._endAt > 1.3) showResult();
     }
+  } else if (mode === 'result' && world) {
+    world.t += dt;
   } else if (world && demoBot && (mode === 'title' || mode === 'map')) {
     acc += dt;
     let n = 0;
@@ -290,7 +293,7 @@ function frame(now) {
     const n = Object.values(save.babies).filter(Boolean).length;
     R.drawVillage(n, visT, save.hat === 'none' ? null : save.hat);
   } else if (world) {
-    R.draw(world, dt, mode === 'play' || mode === 'pause' ? world.t : visT);
+    R.draw(world, dt, mode === 'play' || mode === 'pause' || mode === 'result' ? world.t : visT);
   }
   requestAnimationFrame(frame);
 }
