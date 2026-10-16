@@ -1,2 +1,2 @@
 // tools/make_voices.py が書く。手で直さない
-export const VOICE_IDS = ["b_help1", "b_help2", "b_saved1", "b_saved2", "m_bounce", "m_clear", "m_combo1", "m_combo2", "m_fail", "m_fruit1", "m_fruit2", "m_grab1", "m_grab2", "m_grab3", "m_hurt1", "m_hurt2", "m_jump1", "m_jump2", "m_jump3", "m_kick1", "m_kick2", "m_loop", "m_scared", "m_whiff1", "m_whiff2", "t_carry1", "t_carry2", "t_drop", "t_grab", "t_tired"];
+export const VOICE_IDS = ["b_help1", "b_help2", "b_saved1", "b_saved2", "e_trumpet", "m_bounce", "m_clear", "m_combo1", "m_combo2", "m_fail", "m_fruit1", "m_fruit2", "m_grab1", "m_grab2", "m_grab3", "m_hurt1", "m_hurt2", "m_jump1", "m_jump2", "m_jump3", "m_kick1", "m_kick2", "m_loop", "m_scared", "m_whiff1", "m_whiff2", "t_carry1", "t_carry2", "t_drop", "t_grab", "t_tired"];

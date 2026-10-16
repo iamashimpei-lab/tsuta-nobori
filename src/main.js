@@ -1,5 +1,5 @@
 // つたのぼり: 画面の流れ・入力・保存
-import { createWorld, step, press, lift, stars, STAGES, DT, BODY } from './game.js';
+import { createWorld, step, press, lift, stars, STAGES, DT, BODY, beePos, worldOf } from './game.js';
 import { createRenderer } from './render.js';
 import { unlockAudio, sfx, startMusic, setTension, setSound, voice, loadVoices } from './audio.js';
 import { VOICE_IDS } from './voices.js';
@@ -11,8 +11,11 @@ const HATS = [
   { id: 'none', name: 'なし', cost: 0 },
   { id: 'leaf', name: 'はっぱ', cost: 15 },
   { id: 'flower', name: 'おはな', cost: 35 },
+  { id: 'antenna', name: 'ハチの しょっかく', cost: 45 },
+  { id: 'horns', name: 'キリンの つの', cost: 60 },
   { id: 'crown', name: 'おうかん', cost: 80 },
 ];
+const WORLD_NAMES = { 1: 'ワールド 1  ジャングル', 2: 'ワールド 2  どうぶつの もり' };
 const ROPES = [
   { id: 'green', name: 'みどり', cost: 0, col: ['#2f5a24', '#7cb342'] },
   { id: 'red', name: 'あか', cost: 10, col: ['#7a1f2a', '#ff5a6e'] },
@@ -114,6 +117,12 @@ function openMap() {
       ${save.babies[st.id] ? '<span class="bb">子ザル</span>' : ''}`;
     b.disabled = !unlocked;
     b.addEventListener('click', () => { unlockAudio(); sfx.tap(); startStage(i); });
+    if (i === 0 || worldOf(STAGES[i - 1]) !== worldOf(st)) {
+      const h = document.createElement('div');
+      h.className = 'worldname';
+      h.textContent = WORLD_NAMES[worldOf(st)] || '';
+      list.appendChild(h);
+    }
     list.appendChild(b);
   });
   $('bank').textContent = save.bank;
@@ -248,6 +257,7 @@ function playVoice(e) {
     case 'baby': voice('saved'); break;
     case 'birdTired': voice('ttired'); break;
     case 'birdDrop': voice('tdrop'); break;
+    case 'trunkThrow': voice('etrumpet'); break;
   }
 }
 
@@ -269,6 +279,10 @@ function playEvents(evs) {
       case 'birdTired': sfx.birdTired(); break;
       case 'land': sfx.land(); break;
       case 'regrow': sfx.regrow(); break;
+      case 'sting': sfx.sting(); break;
+      case 'trunkWind': sfx.trunkWind(); break;
+      case 'trunkThrow': sfx.trunkThrow(); break;
+      case 'giraffeTop': sfx.giraffeTop(); break;
       case 'clear': sfx.clear(); break;
       case 'fail': sfx.fail(); break;
     }
@@ -280,7 +294,7 @@ function frame(now) {
   try { frameBody(now); } catch (err) { reportError(err); }
 }
 
-let lastErr = 0;
+let lastErr = 0, lastBuzz = 0;
 // ホームの一番下: 最終更新 (取り込めているかの目印) と、もしあれば最後のエラー
 function showFooter() {
   let err = '';
@@ -321,6 +335,12 @@ function frameBody(now) {
     // 水が近い時の警告音 (曲とは別に鳴らす)
     if (tension > 0.6 && now - lastAlarm > 420) { lastAlarm = now; sfx.alarm(); }
     if (tension > 0.6 && !wasTense) voice('scared');
+    // ハチの群れが近いと羽音 (近いほど大きく)
+    if (world.state === 'play' && world.bees.length && now - lastBuzz > 330) {
+      let near = 1e9;
+      for (const b of world.bees) { const p = beePos(b, world.t); near = Math.min(near, Math.hypot(p.x - world.m.x, p.y - world.m.y)); }
+      if (near < 520) { lastBuzz = now; sfx.buzz(1 - near / 520); }
+    }
     wasTense = tension > 0.6;
     // 画面に子ザルが見えている間、ときどき「たすけてー！」
     if (!world.baby && world.state === 'play' && now - lastHelp > 5200) {

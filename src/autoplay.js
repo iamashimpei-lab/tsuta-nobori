@@ -1,7 +1,8 @@
 // 自動プレイの頭脳: 本物の入力 (press / lift) だけで遊ぶ。node の大量テストと、ブラウザのデモの両方で使う
-import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, FOREST_W, AIR_DRAG } from './game.js';
+import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, FOREST_W, AIR_DRAG, beePos, BEE_R } from './game.js';
 
 const hyp = Math.hypot;
+const RIDES = new Set(['bird', 'vine', 'giraffe', 'trunk', 'sloth']);
 let FRUIT_SEEK = false;
 export function setFruitSeek(v) { FRUIT_SEEK = v; }
 
@@ -45,11 +46,12 @@ function bestFrom(w, s, excl, minGainY) {
     const x = s.x + s.vx * (1 - Math.exp(-AIR_DRAG * tau)) / AIR_DRAG, y = s.y + s.vy * tau + 0.5 * G * tau * tau;
     if (x < -200 || x > FOREST_W + 200) break;
     if (y + BODY > w.water - (w.stage.water * (s.t - w.t + tau)) - 40) break;
+    // ハチの群れに当たる飛び方は選ばない (見て避ける子どもと同じ)
+    if (w.bees.some(b => { const p = beePos(b, s.t + tau); return hyp(p.x - x, p.y - (y + BODY * 0.5)) < BEE_R + 30; })) break;
     for (const a of w.anchors) {
       if (a === excl) continue;
       const t = s.t + tau;
-      if (a.kind === 'thin' && a.broken) continue;
-      if (a.kind === 'bird' && !(a.mode === 'free' && t >= (a.restUntil || 0))) continue;
+      if (!grabbable(w, a, t)) continue;
       const gp = grabPoint(w, a, t);
       const d = hyp(gp.x - x, gp.y - y);
       if (d > ROPE_RANGE * 0.88 || d < 60) continue;
@@ -58,7 +60,7 @@ function bestFrom(w, s, excl, minGainY) {
       const lateral = Math.abs(gp.x - x) / d;
       let fb = 0;
       if (FRUIT_SEEK) for (const f of w.fruits) { if (f.got) continue; for (let u = 0.04; u <= tau; u += 0.04) { const fx = s.x + s.vx * u, fy = s.y + s.vy * u + 0.5 * G * u * u + BODY * 0.6; if (hyp(f.x - fx, f.y - fy) < 60) { fb += 220; break; } } }
-      const score = fb + -gp.y + (a.kind === 'bird' || a.kind === 'vine' ? 260 : 0) + (a.baby && !w.baby ? 180 : 0) - lateral * 30 - tau * 40;
+      const score = fb + -gp.y + (RIDES.has(a.kind) ? 260 : 0) + (a.baby && !w.baby ? 180 : 0) - lateral * 30 - tau * 40;
       if (!best || score > best.score) best = { a, tau, x, y, score, gp };
     }
   }
@@ -67,7 +69,7 @@ function bestFrom(w, s, excl, minGainY) {
 
 export function createBot(seed, jitter = 0.06) {
   const R = mulberry(seed);
-  const st = { plan: null, holdUntilT: 0, failsAt: [], started: false, hb: 0 };
+  const st = { plan: null, holdUntilT: 0, failsAt: [], started: false, hb: 0, stuck: 0 };
   return {
     st,
     // step の直前に呼ぶ
@@ -81,13 +83,15 @@ export function createBot(seed, jitter = 0.06) {
         let best = null;
         for (let k = 0; k < traj.length; k += 3) {
           const s = traj[k];
-          const b = bestFrom(w, s, cur, Math.min(curY - 70, m.y - 120));
+          // 上に届く枝が長く見つからない (行き止まり) 時は、横や少し下の枝へも移る
+          const b = bestFrom(w, s, cur, st.stuck > 6 ? curY + 120 : Math.min(curY - 70, m.y - 120));
           if (b && (!best || b.score - k * 0.4 > best.score - best.k * 0.4)) best = { ...b, k, s };
         }
         if (best) {
           const jr = gauss(R) * jitter, jp = gauss(R) * jitter;
           st.plan = { releaseAt: best.s.t + jr, pressAt: best.s.t + best.tau - 0.09 + jp, target: best.a, aim: best.gp, aimErr: [gauss(R) * 25, gauss(R) * 25] };
-        } else st.holdUntilT = w.t + 0.25;
+          st.stuck = 0;
+        } else { st.holdUntilT = w.t + 0.25; st.stuck = (st.stuck || 0) + 1; }
       }
       if (st.plan && m.mode === 'hang' && w.t >= st.plan.releaseAt) lift(w);
       if (st.plan && m.mode === 'fly' && !w.rope && w.t >= st.plan.pressAt) {

@@ -81,6 +81,12 @@ export const sfx = {
   creak(level) { tone(vary(level === 1 ? 260 : 330, 80), 0.25, { type: 'sawtooth', gain: 0.05, slideTo: level === 1 ? 200 : 240 }); noise(0.18, { freq: 3000, q: 4, gain: 0.07 }); },
   break() { noise(0.25, { freq: 2200, q: 0.8, gain: 0.35 }); tone(vary(180), 0.2, { type: 'square', gain: 0.07, slideTo: 80 }); },
   baby() { [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.25, { at: k * 0.08, type: 'triangle', gain: 0.12 })); },
+  // ワールド 2 (2026-10-16)
+  sting() { noise(0.18, { freq: 2400, q: 3, gain: 0.18 }); tone(vary(1300), 0.2, { type: 'square', slideTo: 500, gain: 0.07 }); },
+  buzz(v) { noise(0.32, { freq: vary(520, 120), q: 6, gain: 0.05 + 0.12 * v }); tone(vary(210, 40), 0.32, { type: 'sawtooth', gain: 0.02 + 0.04 * v }); },
+  trunkWind() { tone(vary(110), 0.45, { type: 'triangle', slideTo: 190, gain: 0.18 }); },
+  trunkThrow() { tone(vary(330), 0.5, { type: 'sawtooth', slideTo: 620, gain: 0.12 }); tone(vary(495), 0.45, { type: 'square', slideTo: 900, gain: 0.05, at: 0.04 }); noise(0.5, { freq: 1600, slideTo: 3000, gain: 0.08 }); },
+  giraffeTop() { tone(vary(660), 0.3, { gain: 0.12 }); tone(vary(990), 0.35, { gain: 0.09, at: 0.08 }); },
   birdTired() { tone(vary(1800), 0.25, { slideTo: 900, gain: 0.07 }); },
   land() { noise(0.15, { freq: 400, type: 'lowpass', gain: 0.25 }); },
   regrow() { tone(vary(500), 0.25, { type: 'sine', slideTo: 1000, gain: 0.08 }); },
@@ -125,7 +131,7 @@ const VOICE_GROUPS = {
   loop: ['m_loop'], kick: ['m_kick1', 'm_kick2'], whiff: ['m_whiff1', 'm_whiff2'], hurt: ['m_hurt1', 'm_hurt2'],
   fail: ['m_fail'], clear: ['m_clear'], bounce: ['m_bounce'], scared: ['m_scared'], fruit: ['m_fruit1', 'm_fruit2'],
   help: ['b_help1', 'b_help2'], saved: ['b_saved1', 'b_saved2'],
-  tgrab: ['t_grab'], tcarry: ['t_carry1', 't_carry2'], ttired: ['t_tired'], tdrop: ['t_drop'],
+  tgrab: ['t_grab'], tcarry: ['t_carry1', 't_carry2'], ttired: ['t_tired'], tdrop: ['t_drop'], etrumpet: ['e_trumpet'],
 };
 // 大事な声 (痛い・クリア等) は鳴っている声を止めて割り込む。ふだんの声は間をあける
 const URGENT = new Set(['hurt', 'fail', 'clear', 'saved', 'loop', 'combo', 'tdrop', 'ttired']);

@@ -22,7 +22,21 @@ export const STAGES = [
   { id: '1-3', name: 'ポキッと えだ', height: 3200, gap: [165, 215], water: 38, fruits: 10, gimmick: 'thin', seed: 37 },
   { id: '1-4', name: 'ながい つる', height: 3400, gap: [170, 220], water: 38, fruits: 10, gimmick: 'vine', seed: 41 },
   { id: '1-5', name: 'ジャングルの てっぺん', height: 4200, gap: [160, 210], water: 43, fruits: 12, gimmick: 'mix', seed: 59 },
+  // ワールド 2 どうぶつの森 (2026-10-16): 動物の仕掛けを 1 面に 1 つずつ
+  { id: '2-1', name: 'キリンの くび', height: 3000, gap: [160, 210], water: 27, fruits: 9, gimmick: 'giraffe', seed: 5083 },
+  { id: '2-2', name: 'ゾウの はな', height: 3200, gap: [160, 210], water: 34, fruits: 10, gimmick: 'trunk', seed: 83 },
+  { id: '2-3', name: 'のんびり ナマケモノ', height: 3300, gap: [165, 215], water: 30, fruits: 10, gimmick: 'sloth', seed: 7097 },
+  { id: '2-4', name: 'ブンブン ハチ', height: 3400, gap: [165, 215], water: 36, fruits: 10, gimmick: 'bees', seed: 103 },
+  { id: '2-5', name: 'どうぶつの もりの てっぺん', height: 4400, gap: [160, 210], water: 39, fruits: 12, gimmick: 'mix2', seed: 9157 },
 ];
+export const worldOf = st => Number(st.id[0]);
+
+// キリン: 頭につかまると首が上がる (GIR_UP/秒、最大 GIR_H)。離すとゆっくり下がる
+export const GIR_H = 520, GIR_UP = 300, GIR_DOWN = 150;
+// ゾウ: 鼻の先につかまると、TRUNK_WIND 秒ためてから上へ放り上げる
+export const TRUNK_WIND = 0.45, TRUNK_VY = -1750;
+// ハチ: 群れに当たるとロープが外れる (ハートは減らない)。当たり判定の半径
+export const BEE_R = 62;
 
 export function rng(seed) {
   let s = (seed * 2654435761) >>> 0 || 1;
@@ -56,12 +70,26 @@ export function anchorPos(w, a, t = w.t) {
     }
     return birdFreePos(a, t);
   }
+  if (a.kind === 'giraffe') {
+    const h = clamp(a.h + a.hv * (t - w.t), 0, GIR_H);
+    const moving = h > 0 && h < GIR_H;
+    return { x: a.x, y: a.baseY - h, vx: 0, vy: moving ? -a.hv : 0 };
+  }
+  if (a.kind === 'sloth') {
+    const u = t * a.sp + a.phase;
+    return { x: a.x0 + Math.sin(u) * a.span, y: a.y, vx: Math.cos(u) * a.span * a.sp, vy: 0, dir: Math.cos(u) >= 0 ? 1 : -1 };
+  }
   return { x: a.x, y: a.y, vx: 0, vy: 0 };
+}
+
+export function beePos(b, t) {
+  return { x: b.x0 + Math.sin(t * b.sp + b.phase) * b.span, y: b.y + Math.sin(t * 2.1 + b.phase) * 18, dir: Math.cos(t * b.sp + b.phase) >= 0 ? 1 : -1 };
 }
 
 export function grabbable(w, a, t = w.t) {
   if (a.kind === 'thin') return !a.broken;
   if (a.kind === 'bird') return a.mode === 'free' && t >= (a.restUntil || 0);
+  if (a.kind === 'trunk') return t >= (a.restUntil || 0);
   return true;
 }
 
@@ -76,7 +104,7 @@ export function buildLevel(stageIndex) {
   const st = STAGES[stageIndex];
   const R = rng(st.seed);
   const rand = (a, b) => a + (b - a) * R();
-  const anchors = [], fruits = [], leaves = [];
+  const anchors = [], fruits = [], leaves = [], bees = [];
   const add = (a) => { a.id = anchors.length; anchors.push(a); return a; };
   const goalY = -st.height;
 
@@ -99,7 +127,13 @@ export function buildLevel(stageIndex) {
       else if ((g === 'vine' || g === 'mix') && segment % (g === 'vine' ? 4 : 6) === 2) special = 'vine';
       else if ((g === 'thin' || g === 'mix') && R() < (g === 'thin' ? 0.38 : 0.2)) kind = 'thin';
       else if (g === 'mix' && segment % 9 === 5) special = 'leaf';
+      else if ((g === 'giraffe' || g === 'mix2') && segment % (g === 'giraffe' ? 5 : 9) === 0) special = 'giraffe';
+      else if ((g === 'trunk' || g === 'mix2') && segment % (g === 'trunk' ? 5 : 9) === 3) special = 'trunk';
+      else if ((g === 'sloth' || g === 'mix2') && segment % (g === 'sloth' ? 4 : 9) === (g === 'sloth' ? 2 : 6)) special = 'sloth';
+      else if (g === 'mix2' && R() < 0.12) kind = 'thin';
     }
+    // ハチの群れ: この 1 歩の途中を左右に行き来する (普通の 1 歩に重ねる)
+    const bee = segment > 3 && !special && ((g === 'bees' && segment % 3 === 1) || (g === 'mix2' && segment % 7 === 4));
     if (special === 'bird') {
       // 大きな切れ目: 鳥でしか越えられない。下の枝の少し上を鳥が往復する
       const lane = y - 150;
@@ -118,6 +152,25 @@ export function buildLevel(stageIndex) {
       leaves.push({ x: clamp(x + dir * 120, 140, FOREST_W - 140), y: y + 120, w: 170 });
       gap += 120;
       pendingLeaf++;
+    } else if (special === 'giraffe') {
+      // 大きな切れ目: キリンの頭につかまって持ち上げてもらう。次の枝は首が上がりきった所の近く
+      const hx = clamp(x + dir * rand(120, 160), 160, FOREST_W - 160);
+      const baseY = y - 30;
+      add({ kind: 'giraffe', x: hx, baseY, h: 0, hv: 0, chain: true });
+      x = hx - dir * 120; y = baseY - GIR_H; gap = rand(40, 80);
+    } else if (special === 'trunk') {
+      // 大きな切れ目: ゾウの鼻につかまると上へ放り上げてもらう
+      const tx = clamp(x + dir * rand(140, 190), 180, FOREST_W - 180);
+      const ty = y - rand(120, 160);
+      add({ kind: 'trunk', x: tx, y: ty, dir, chain: true });
+      x = tx; y = ty - 560; gap = rand(0, 40);
+    } else if (special === 'sloth') {
+      // 横の切れ目: ナマケモノがゆっくり左右に動く。端まで運んでもらってから飛ぶ
+      const span = 210;
+      const x0 = clamp(x + dir * rand(160, 220), 140 + span, FOREST_W - 140 - span);
+      const sy = y - rand(150, 190);
+      add({ kind: 'sloth', x0, y: sy, span, sp: 0.45, phase: R() * 6, chain: true });
+      x = clamp(x0 + dir * span, 140, FOREST_W - 140); y = sy; gap = rand(140, 180);
     }
     let dx = rand(130, 280) * dir;
     if (x + dx < 140 || x + dx > FOREST_W - 140) { dir = -dir; dx = -dx; }
@@ -131,6 +184,7 @@ export function buildLevel(stageIndex) {
     }
     const a = add({ kind, x: nx, y: fy, chain: true, size: 0.85 + R() * 0.4 });
     chain.push(a);
+    if (bee) bees.push({ x0: (x + nx) / 2, y: (y + fy) / 2 + 30, span: 260, sp: 0.55, phase: R() * 6 });
     // 同じ向きに続けて進むこともある (森の横の広さを使う)
     if (R() < 0.5) dir = -dir;
     x = nx; y = fy;
@@ -142,8 +196,12 @@ export function buildLevel(stageIndex) {
     const ey = rand(goalY + 300, -380);
     const near = chain.reduce((b, a) => (a.kind !== 'bird' && Math.abs(a.y - ey) < Math.abs(b.y - ey) ? a : b), chain[0]);
     const ex = clamp(near.x + rand(-450, 450), 130, FOREST_W - 130);
-    if (anchors.some(a => a.kind !== 'bird' && hyp((a.x ?? 0) - ex, (a.kind === 'vine' ? a.y + a.len : a.y) - ey) < 150)) continue;
+    if (anchors.some(a => STATIC.has(a.kind) && hyp((a.x ?? 0) - ex, (a.kind === 'vine' ? a.y + a.len : a.y) - ey) < 150)) continue;
     if (anchors.some(a => a.kind === 'bird' && Math.abs(a.lane - ey) < 120)) continue;
+    // 動物の仕掛けの切れ目には寄り道の枝を置かない (仕掛けを使わずに越えられてしまうので)
+    if (anchors.some(a => a.kind === 'giraffe' && Math.abs(a.x - ex) < 520 && ey < a.baseY + 40 && ey > a.baseY - GIR_H - 40)) continue;
+    if (anchors.some(a => a.kind === 'trunk' && Math.abs(a.x - ex) < 520 && ey < a.y + 40 && ey > a.y - 520)) continue;
+    if (anchors.some(a => a.kind === 'sloth' && Math.abs(a.y - ey) < 130 && Math.abs(a.x0 - ex) < a.span + 200)) continue;
     add({ kind: 'branch', x: ex, y: ey, chain: false, size: 0.8 + R() * 0.3 });
     k++;
   }
@@ -162,14 +220,15 @@ export function buildLevel(stageIndex) {
   // 最後の道の枝が てっぺん (大きな枝)。つかまればクリア
   const top = chainBranches[chainBranches.length - 1];
   top.goal = true; top.size = 1.6; top.baby = top.baby || false;
-  return { stage: st, anchors, fruits, leaves, goalY: top.y - 60, chain };
+  return { stage: st, anchors, fruits, leaves, bees, goalY: top.y - 60, chain };
 }
+const STATIC = new Set(['branch', 'thin', 'vine', 'trunk']);
 
 export function createWorld(stageIndex) {
   const lv = buildLevel(stageIndex);
   const a0 = lv.anchors[0];
   const w = {
-    stageIndex, stage: lv.stage, anchors: lv.anchors, fruits: lv.fruits, leaves: lv.leaves, goalY: lv.goalY,
+    stageIndex, stage: lv.stage, anchors: lv.anchors, fruits: lv.fruits, leaves: lv.leaves, bees: lv.bees, goalY: lv.goalY,
     t: 0, steps: 0,
     m: { x: a0.x + 70, y: a0.y + 195, vx: 0, vy: 0, mode: 'hang', anchor: a0, L: 210, Lmin: 150, attachT: 0, rot: 0 },
     rope: null, holding: false, autoRelease: null,
@@ -266,6 +325,8 @@ function attach(w, a) {
     m.L = Math.min(m.L, 170); m.Lmin = m.L;
   }
   if (a.kind === 'thin') { a.holdStart = w.t; }
+  if (a.kind === 'giraffe') { m.L = Math.min(m.L, 170); m.Lmin = Math.min(m.Lmin, m.L); }
+  if (a.kind === 'trunk') { a.throwAt = w.t + TRUNK_WIND; m.L = Math.min(m.L, 140); m.Lmin = m.L; ev(w, 'trunkWind', { x: p.x, y: p.y }); }
   if (a.goal) { w.state = 'clear'; w.clearT = w.t; ev(w, 'attach', { combo: w.combo, x: p.x, y: p.y, kind: a.kind }); ev(w, 'clear'); return; }
   if (a.baby && !w.baby) { w.baby = true; ev(w, 'baby', { x: p.x, y: p.y }); }
   w.freeze = 5;
@@ -328,6 +389,38 @@ export function step(w) {
       if (c === 3) { a.broken = true; a.regrowAt = w.t + 5; release(w); }
     } else if (a.crack && a.crack < 3) {
       a.crack = 0;
+    }
+  }
+
+  // キリン: つかまっている間は首が上がり、離すとゆっくり下がる
+  for (const a of w.anchors) {
+    if (a.kind !== 'giraffe') continue;
+    const on = m.mode === 'hang' && m.anchor === a;
+    a.hv = on ? (a.h < GIR_H ? GIR_UP : 0) : (a.h > 0 ? -GIR_DOWN : 0);
+    const was = a.h;
+    a.h = clamp(a.h + a.hv * DT, 0, GIR_H);
+    if (on && was < GIR_H && a.h >= GIR_H) ev(w, 'giraffeTop', { x: a.x, y: a.baseY - GIR_H });
+  }
+  // ゾウ: ためが終わったら上へ放り上げる
+  if (m.mode === 'hang' && m.anchor && m.anchor.kind === 'trunk' && w.t >= m.anchor.throwAt) {
+    const a = m.anchor;
+    a.restUntil = w.t + 1.2;
+    release(w);
+    m.x = a.x; m.y = a.y + 40; m.vx = a.dir * 260; m.vy = TRUNK_VY;
+    ev(w, 'trunkThrow', { x: a.x, y: a.y });
+  }
+  // ハチ: 飛んでいる時に群れに当たると、少し弾かれてロープも戻る (ハートは減らない)。
+  // ぶら下がって揺れている時は当たらない (揺れるたびに落とされると理不尽なので)
+  if (m.mode === 'fly' && !(w.beeSafe > w.t)) {
+    for (const b of w.bees) {
+      const p = beePos(b, w.t);
+      if (hyp(p.x - m.x, p.y - (m.y + BODY * 0.5)) < BEE_R) {
+        w.beeSafe = w.t + 1.5; w.combo = 0;
+        if (w.rope && w.rope.phase === 'out') w.rope.phase = 'back';
+        m.vx = Math.sign(m.x - p.x || 1) * 320; m.vy = Math.max(m.vy, 150);
+        ev(w, 'sting', { x: m.x, y: m.y });
+        break;
+      }
     }
   }
 

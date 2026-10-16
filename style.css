@@ -100,6 +100,8 @@ button:disabled { filter: grayscale(0.9) brightness(0.7); }
 .hat-none { border: 3px dashed rgba(90,50,20,0.4); }
 .hat-leaf { background: radial-gradient(ellipse at 50% 60%, #4fae55 60%, transparent 62%); }
 .hat-flower { background: radial-gradient(circle at 50% 50%, #ffd23f 22%, #ff8fb0 24% 55%, transparent 57%); }
+.hat-antenna { background: radial-gradient(circle at 25% 25%, #ffcf2e 14%, transparent 16%), radial-gradient(circle at 75% 25%, #ffcf2e 14%, transparent 16%), linear-gradient(60deg, transparent 46%, #2a1a1a 47% 53%, transparent 54%) left/50% 100% no-repeat, linear-gradient(-60deg, transparent 46%, #2a1a1a 47% 53%, transparent 54%) right/50% 100% no-repeat; }
+.hat-horns { background: radial-gradient(circle at 30% 22%, #7a4626 14%, transparent 16%), radial-gradient(circle at 70% 22%, #7a4626 14%, transparent 16%), linear-gradient(90deg, transparent 26%, #e8b64a 27% 34%, transparent 35% 65%, #e8b64a 66% 73%, transparent 74%); }
 .hat-crown { background: linear-gradient(#ffcc33, #e0a010); clip-path: polygon(0 100%, 0 20%, 25% 60%, 50% 0, 75% 60%, 100% 20%, 100% 100%); }
 
 #footer { position: fixed; left: 0; right: 0; bottom: max(10px, env(safe-area-inset-bottom)); text-align: center; font-size: 15px; color: rgba(255,255,255,0.75); text-shadow: 0 1px 2px rgba(0,0,0,0.8); pointer-events: none; }
@@ -155,3 +157,10 @@ h1 { position: relative; color: #ffe066;
   button.big { font-size: 30px; padding: 12px 40px; }
   .stage { width: 150px; }
 }
+
+/* マップのワールド見出し (2026-10-16) */
+.worldname { flex-basis: 100%; text-align: center; font-weight: 900; font-size: 26px; color: #fff4c4; text-shadow: 0 2px 0 #3a1d2a; margin: 6px 0 -6px; }
+
+/* 面が増えてマップが画面に収まらない時は、面の一覧だけをスクロールし「もどる」は常に見せる (2026-10-17) */
+#stages { flex: 0 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; margin-top: 0; padding: 44px 16px 16px; }
+#map h2, #map .mapfoot { flex-shrink: 0; }

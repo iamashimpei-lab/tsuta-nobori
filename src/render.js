@@ -1,8 +1,8 @@
 // つたのぼり: 描画
 // 色の役割 (550 Atelier の手順より): サル = 暖色 / つかめる物 = 黄色い光の輪 / 危険 = ピンク・赤 / 背景 = 暗く彩度低め
 // 影は黒を混ぜず、色相を紫・青緑へずらして暗くする。一番明るいのはサル、次につかめる物、背景が一番暗い
-import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable } from './game.js';
-import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite } from './art.js';
+import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable, beePos, BEE_R, TRUNK_WIND } from './game.js';
+import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite, drawGiraffe, drawElephant, drawSloth, drawBee, drawHive } from './art.js';
 
 const FONT = '"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif';
 const PAL = {
@@ -80,6 +80,15 @@ export function createRenderer(canvas) {
         R.texts.push({ s: 'つかれた〜', x: e.x, y: e.y - 50, t: w.t, c: '#bfe7ff', size: 26, stroke: '#123a5a' });
       } else if (e.type === 'land') {
         burst(e.x, e.y, 10, ['#b08a5a', '#7fd16a'], 200, 0.5, 'chip');
+      } else if (e.type === 'sting') {
+        R.shake = Math.max(R.shake, 9);
+        R.texts.push({ s: 'チクッ！', x: e.x, y: e.y - 40, t: w.t, c: '#ff8fb0', size: 36, stroke: '#7a1030' });
+      } else if (e.type === 'trunkThrow') {
+        burst(e.x, e.y, 18, ['#d9f3ff', '#ffffff', '#8fd3ff'], 420, 0.7, 'drop', -1);
+        R.shake = Math.max(R.shake, 10);
+        R.texts.push({ s: 'パオーン！', x: e.x, y: e.y - 70, t: w.t, c: '#e6ecff', size: 38, stroke: '#3a3a6a' });
+      } else if (e.type === 'giraffeTop') {
+        R.texts.push({ s: 'のび〜っ', x: e.x, y: e.y - 60, t: w.t, c: '#ffe7a0', size: 30, stroke: '#6a3a10' });
       } else if (e.type === 'regrow') {
         burst(e.x, e.y, 10, ['#86d46a', '#ffffff'], 200, 0.5, 'leaf');
         R.texts.push({ s: 'にょきっ', x: e.x, y: e.y - 40, t: w.t, c: '#c8ff8a', size: 26 });
@@ -233,7 +242,7 @@ export function createRenderer(canvas) {
   function anchors(w, t) {
     const m = w.m;
     for (const a of w.anchors) {
-      if (a.kind === 'bird') continue;
+      if (a.kind === 'bird' || ANIMALS.has(a.kind)) continue;
       const p = anchorPos(w, a);
       const vy = a.kind === 'vine' ? p.y + a.len : p.y;
       if (!inView(p.y, 420) && !inView(vy, 300)) continue;
@@ -271,6 +280,60 @@ export function createRenderer(canvas) {
         ctx.beginPath(); ctx.moveTo(wx, p.y - 60); ctx.lineTo(lerp(wx, p.x, 0.3), p.y - 64); ctx.stroke();
       }
       ctx.restore();
+    }
+  }
+
+  // ワールド 2 の動物 (枝より奥に描く。キリンの首が枝の後ろを通るように)
+  const ANIMALS = new Set(['giraffe', 'trunk', 'sloth']);
+  function animals(w, t) {
+    const m = w.m;
+    for (const a of w.anchors) {
+      if (!ANIMALS.has(a.kind)) continue;
+      const p = anchorPos(w, a);
+      if (!inView(p.y, a.kind === 'giraffe' ? 900 : 300)) continue;
+      const on = m.mode === 'hang' && m.anchor === a;
+      const reach = Math.hypot(p.x - m.x, p.y - m.y) < 360;
+      if (a.kind === 'giraffe') {
+        ctx.save(); ctx.translate(p.x, p.y);
+        drawGiraffe(ctx, t, { dir: a.id % 2 ? 1 : -1, neck: 1100 + a.h, happy: on });
+        ctx.restore();
+      } else if (a.kind === 'trunk') {
+        const bx = p.x - a.dir * 166;
+        const wx = trunkX(bx);
+        drawBranch(ctx, wx, p.y + 4, (wx + bx) / 2, p.y - 6, bx - a.dir * 70, p.y + 8, 30, 18, a.id + 1);
+        const wind = on ? Math.min(1, Math.max(0, (t - (a.throwAt - TRUNK_WIND)) / TRUNK_WIND)) : 0;
+        const since = t - ((a.restUntil || -9) - 1.2);
+        ctx.save(); ctx.translate(p.x, p.y);
+        drawElephant(ctx, t, { dir: a.dir, wind, up: since < 0.6 ? 1 - since / 0.6 : 0 });
+        ctx.restore();
+      } else if (a.kind === 'sloth') {
+        drawBranch(ctx, a.x0 - a.span - 70, a.y - 6, a.x0, a.y - 22, a.x0 + a.span + 70, a.y - 6, 20, 12, a.id + 1);
+        leafBlob(a.x0 - a.span - 70, a.y - 20, 36, a.id + 5); leafBlob(a.x0 + a.span + 70, a.y - 20, 36, a.id + 6);
+        ctx.save(); ctx.translate(p.x, p.y);
+        drawSloth(ctx, t, { dir: p.dir });
+        ctx.restore();
+      }
+      if (!on && grabbable(w, a)) grabRing(p.x, p.y, t, a.id, reach);
+    }
+  }
+  function bees(w, t) {
+    const m = w.m;
+    for (const b of w.bees) {
+      if (!inView(b.y, 200)) continue;
+      ctx.save(); ctx.translate(b.x0, b.y - 150); drawHive(ctx, t); ctx.restore();
+      const p = beePos(b, t);
+      // 近いと危険の色 (ピンク) の輪で知らせる
+      const d = Math.hypot(p.x - m.x, p.y - m.y);
+      if (d < 420) {
+        ctx.strokeStyle = `rgba(255,79,123,${0.25 + 0.35 * (1 - d / 420)})`; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+        ctx.beginPath(); ctx.arc(p.x, p.y, BEE_R + 6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      }
+      for (let k = 0; k < 5; k++) {
+        const u = t * 3 + k * 1.26 + b.phase;
+        ctx.save(); ctx.translate(p.x + Math.cos(u) * 30, p.y + Math.sin(u * 1.3) * 22);
+        ctx.scale(1.4, 1.4); drawBee(ctx, t, { dir: p.dir, phase: k });
+        ctx.restore();
+      }
     }
   }
 
@@ -622,7 +685,9 @@ export function createRenderer(canvas) {
     trunksDraw();
     forestEdges();
     leaves(w, t);
+    animals(w, t);
     anchors(w, t);
+    bees(w, t);
     fruits(w, t);
     ground(w);
     birds(w, t);
@@ -654,14 +719,22 @@ export function createRenderer(canvas) {
     const gy = H * 0.74;
     ctx.fillStyle = '#6b9a4a'; ctx.fillRect(0, gy, WORLD_W, H - gy);
     ctx.fillStyle = '#5a8a3e'; ctx.fillRect(0, gy, WORLD_W, 14);
-    const spots = [[230, 'hut'], [500, 'swing'], [760, 'hut2'], [980, 'tower'], [380, 'pool']];
-    for (let i = 0; i < 5; i++) {
+    // 前の列 = ワールド 1 の 5 匹、奥の列 (小さめ) = ワールド 2 の 5 匹
+    const spots = [[230, 'hut'], [500, 'swing'], [760, 'hut2'], [980, 'tower'], [380, 'pool'],
+      [130, 'hut2'], [360, 'tower'], [620, 'hut'], [870, 'swing'], [1080, 'hut']];
+    for (const i of [5, 6, 7, 8, 9, 0, 1, 2, 3, 4]) {
       const [x, kind] = spots[i];
+      ctx.save();
+      if (i >= 5) { ctx.translate(x, gy - 150); ctx.scale(0.7, 0.7); ctx.translate(-x, -gy); }
+      drawSpot(i, x, kind);
+      ctx.restore();
+    }
+    function drawSpot(i, x, kind) {
       if (i >= count) {
         ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 4;
         ctx.strokeRect(x - 70, gy - 140, 140, 140); ctx.setLineDash([]);
         txt('？', x, gy - 70, 60, 'rgba(255,255,255,0.6)', null);
-        continue;
+        return;
       }
       if (kind === 'hut' || kind === 'hut2') {
         ctx.fillStyle = '#a7743f'; ctx.fillRect(x - 60, gy - 100, 120, 100);
@@ -689,8 +762,9 @@ export function createRenderer(canvas) {
     }
     // 子ザルたち (人数分、跳ねる)
     for (let i = 0; i < count; i++) {
-      const x = 160 + i * 190 + Math.sin(t * 0.8 + i) * 30, hop = Math.abs(Math.sin(t * 3 + i * 1.3)) * 30;
-      ctx.save(); ctx.translate(x, gy - 50 - hop); ctx.scale(0.6, 0.6);
+      const back = i >= 5, k = i % 5;
+      const x = (back ? 250 : 160) + k * 190 + Math.sin(t * 0.8 + i) * 30, hop = Math.abs(Math.sin(t * 3 + i * 1.3)) * 30;
+      ctx.save(); ctx.translate(x, gy - (back ? 150 : 50) - hop); ctx.scale(back ? 0.45 : 0.6, back ? 0.45 : 0.6);
       monkeyBody(t + i, { mode: 'baby', wave: Math.sin(t * 6 + i) });
       ctx.restore();
     }

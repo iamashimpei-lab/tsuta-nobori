@@ -186,6 +186,19 @@ function drawHat(c, kind) {
   } else if (kind === 'flower') {
     for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; oval(c, 16 + Math.cos(a) * 8, 8 + Math.sin(a) * 8, 6.5, 6.5, '#ff8fb0', 2); }
     oval(c, 16, 8, 4.5, 4.5, '#ffd23f', 2);
+  } else if (kind === 'antenna') {
+    // ハチのしょっかく
+    for (const d of [-1, 1]) {
+      c.strokeStyle = '#2a1a1a'; c.lineWidth = 3; c.beginPath(); c.moveTo(d * 8, 10); c.quadraticCurveTo(d * 12, -8, d * 20, -14); c.stroke();
+      oval(c, d * 20, -15, 5, 5, '#ffcf2e', 2);
+    }
+  } else if (kind === 'horns') {
+    // キリンのつの
+    for (const d of [-1, 1]) {
+      c.strokeStyle = OUT; c.lineWidth = 8; c.beginPath(); c.moveTo(d * 9, 12); c.lineTo(d * 11, -4); c.stroke();
+      c.strokeStyle = '#e8b64a'; c.lineWidth = 4.5; c.beginPath(); c.moveTo(d * 9, 12); c.lineTo(d * 11, -4); c.stroke();
+      oval(c, d * 11, -6, 5.5, 5.5, '#7a4626', 2.5);
+    }
   } else if (kind === 'crown') {
     c.beginPath(); c.moveTo(-18, 12); c.lineTo(-18, -6); c.lineTo(-9, 3); c.lineTo(0, -12); c.lineTo(9, 3); c.lineTo(18, -6); c.lineTo(18, 12); c.closePath();
     c.strokeStyle = '#7a4a00'; c.lineWidth = 3; c.stroke();
@@ -460,4 +473,112 @@ export function frondSprite(col) {
   });
   frondCache.set(col, spr);
   return spr;
+}
+
+// ---- ワールド 2 どうぶつの森 (2026-10-16) ----
+// キリン (原点 = つかむ角の付け根。首は下へ長く伸び、体は画面の外)
+export function drawGiraffe(c, t, o = {}) {
+  const dir = o.dir || 1, neck = o.neck || 900;
+  c.save(); c.scale(dir, 1);
+  // 首: 下へ伸びる。ふちは紫寄りの茶、地は黄、まだら模様は茶
+  c.lineCap = 'round';
+  c.strokeStyle = OUT; c.lineWidth = 46; c.beginPath(); c.moveTo(-8, 30); c.lineTo(-30, neck); c.stroke();
+  c.strokeStyle = '#e8b64a'; c.lineWidth = 40; c.beginPath(); c.moveTo(-8, 30); c.lineTo(-30, neck); c.stroke();
+  c.strokeStyle = '#f6d78a'; c.lineWidth = 10; c.globalAlpha = 0.6; c.beginPath(); c.moveTo(-18, 34); c.lineTo(-40, neck); c.stroke(); c.globalAlpha = 1;
+  for (let k = 0; k < neck / 60; k++) {
+    const y = 60 + k * 58, x = -8 - (y / neck) * 22 + (k % 2 ? 8 : -8);
+    c.fillStyle = '#a9622c'; c.beginPath(); c.ellipse(x, y, 11, 14, (k % 3) * 0.4, 0, TAU); c.fill();
+  }
+  // たてがみ
+  c.strokeStyle = '#8a4a26'; c.lineWidth = 8; c.beginPath(); c.moveTo(-26, 34); c.lineTo(-48, neck); c.stroke();
+  // 頭 (右向き)
+  oval(c, 14, 24, 40, 24, radial(c, 14, 24, 40, '#f8d078', '#d79a3a'), 4, 0.15);
+  oval(c, 46, 32, 18, 14, '#e9b98a', 3.5, 0.2); // 鼻先
+  c.fillStyle = '#5a2a2a'; c.beginPath(); c.arc(52, 30, 2.6, 0, TAU); c.fill();
+  // 角 (つかむ所)
+  for (const x of [-6, 10]) {
+    c.strokeStyle = OUT; c.lineWidth = 9; c.beginPath(); c.moveTo(x, 8); c.lineTo(x - 2, -6); c.stroke();
+    c.strokeStyle = '#d79a3a'; c.lineWidth = 5; c.beginPath(); c.moveTo(x, 8); c.lineTo(x - 2, -6); c.stroke();
+    oval(c, x - 2, -8, 6, 6, '#7a4626', 2.5);
+  }
+  // 耳と目 (上がっている時はうれしそうに細める)
+  oval(c, -16, 12, 12, 6, '#e8b64a', 3, -0.5);
+  if (o.happy) { c.strokeStyle = '#2a1414'; c.lineWidth = 3; c.beginPath(); c.arc(20, 20, 5, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); }
+  else { oval(c, 20, 18, 5.5, 6, '#1a1010', 0); c.fillStyle = '#fff'; c.beginPath(); c.arc(21.5, 16.5, 1.8, 0, TAU); c.fill(); }
+  c.fillStyle = 'rgba(255,120,120,0.45)'; c.beginPath(); c.ellipse(30, 34, 7, 4, 0, 0, TAU); c.fill();
+  c.restore();
+}
+
+// ゾウ (原点 = 鼻の先 = つかむ所)。体は dir の反対側の枝の上に座る。wind = 0〜1 (ため)
+export function drawElephant(c, t, o = {}) {
+  const dir = o.dir || 1, wind = o.wind || 0, up = o.up || 0;
+  c.save(); c.scale(-dir, 1); // 体は鼻先から見て dir の反対側
+  const hx = 96, hy = -86 - wind * 8;
+  const breathe = Math.sin(t * 2) * 2;
+  // 体と足 (枝の上に座る)
+  oval(c, hx + 70, hy + 40 + breathe, 70, 52, radial(c, hx + 70, hy + 40, 70, '#a7b2c9', '#6f7a99'), 4);
+  oval(c, hx + 30, hy + 86, 22, 14, '#8590ad', 3.5); oval(c, hx + 100, hy + 88, 22, 14, '#8590ad', 3.5);
+  // 鼻 (頭から先へ。ためると縮んで丸まる、投げた直後は上へ)
+  const tipX = 0, tipY = 0;
+  const cx = hx * 0.45, cy = hy + 60 + wind * 30 - up * 80;
+  c.lineCap = 'round';
+  c.strokeStyle = OUT; c.lineWidth = 30; c.beginPath(); c.moveTo(hx - 20, hy + 14); c.quadraticCurveTo(cx, cy, tipX, tipY); c.stroke();
+  c.strokeStyle = '#97a2bf'; c.lineWidth = 24; c.beginPath(); c.moveTo(hx - 20, hy + 14); c.quadraticCurveTo(cx, cy, tipX, tipY); c.stroke();
+  c.strokeStyle = 'rgba(70,60,100,0.5)'; c.lineWidth = 2;
+  for (let k = 1; k < 6; k++) { const u = k / 6; const x = (1 - u) * (1 - u) * (hx - 20) + 2 * (1 - u) * u * cx + u * u * tipX, y = (1 - u) * (1 - u) * (hy + 14) + 2 * (1 - u) * u * cy + u * u * tipY; c.beginPath(); c.moveTo(x - 9, y - 3); c.lineTo(x + 9, y + 3); c.stroke(); }
+  oval(c, tipX, tipY, 13, 11, '#b8c2da', 3.5);
+  // 頭と耳 (耳はぱたぱた)
+  const flap = Math.sin(t * 3) * 0.12;
+  oval(c, hx + 34, hy - 2, 44, 50, radial(c, hx + 34, hy - 2, 50, '#c6a7c9', '#8f7aa6'), 4, 0.2 + flap);
+  oval(c, hx, hy, 44, 40, radial(c, hx, hy, 44, '#b7c1d8', '#7c87a6'), 4);
+  // 目 (ためている時はぎゅっ)
+  if (wind > 0) { c.strokeStyle = '#1a1424'; c.lineWidth = 3.5; c.beginPath(); c.moveTo(hx - 22, hy - 10); c.lineTo(hx - 12, hy - 6); c.lineTo(hx - 22, hy - 2); c.stroke(); }
+  else { oval(c, hx - 16, hy - 8, 5, 6, '#1a1424', 0); c.fillStyle = '#fff'; c.beginPath(); c.arc(hx - 14.5, hy - 9.5, 1.8, 0, TAU); c.fill(); }
+  c.fillStyle = 'rgba(255,140,170,0.5)'; c.beginPath(); c.ellipse(hx - 26, hy + 12, 8, 5, 0, 0, TAU); c.fill();
+  // きば
+  c.strokeStyle = '#fff6e0'; c.lineWidth = 6; c.beginPath(); c.moveTo(hx - 24, hy + 26); c.quadraticCurveTo(hx - 40, hy + 36, hx - 46, hy + 26); c.stroke();
+  c.restore();
+}
+
+// ナマケモノ (原点 = つかむ所 = 枝をにぎる手)。体は下へさかさまにぶら下がる
+export function drawSloth(c, t, o = {}) {
+  const dir = o.dir || 1, sway = Math.sin(t * 1.2) * 0.06;
+  c.save(); c.rotate(sway); c.scale(dir * 1.35, 1.35);
+  limb(c, [[-14, 0], [-20, 24], [-16, 46]], 12, '#b8a07c', '#e0caa4');
+  limb(c, [[14, 0], [22, 24], [18, 48]], 12, '#b8a07c', '#e0caa4');
+  oval(c, 0, 64, 34, 30, radial(c, 0, 64, 34, '#d8c29c', '#9c8468'), 4);
+  // 顔 (目のまわりの黒い帯がナマケモノの印)
+  oval(c, 4, 90, 24, 20, '#e8d8b8', 3.5);
+  c.fillStyle = '#4a3428';
+  c.beginPath(); c.ellipse(-6, 88, 9, 5, -0.3, 0, TAU); c.fill(); c.beginPath(); c.ellipse(14, 88, 9, 5, 0.3, 0, TAU); c.fill();
+  c.fillStyle = '#100808'; c.beginPath(); c.arc(-5, 88, 2.4, 0, TAU); c.arc(13, 88, 2.4, 0, TAU); c.fill();
+  c.strokeStyle = '#4a3428'; c.lineWidth = 2.5; c.beginPath(); c.arc(4, 96, 6, 0.2, Math.PI - 0.2); c.stroke();
+  oval(c, 4, 94, 3.5, 2.5, '#3a2420', 0);
+  // つめ
+  c.strokeStyle = '#3a2a20'; c.lineWidth = 3;
+  for (const x of [-18, -12, 10, 16]) { c.beginPath(); c.moveTo(x, 2); c.quadraticCurveTo(x + 2, -8, x + 7, -6); c.stroke(); }
+  c.restore();
+}
+
+// ハチ 1 匹 (群れは render が数匹並べる)
+export function drawBee(c, t, o = {}) {
+  const flap = Math.sin(t * 60 + (o.phase || 0));
+  c.save(); c.scale(o.dir || 1, 1);
+  c.fillStyle = 'rgba(230,245,255,0.8)';
+  c.beginPath(); c.ellipse(-2, -12, 9, 5 + flap * 3, -0.5, 0, TAU); c.fill();
+  c.beginPath(); c.ellipse(6, -12, 9, 5 - flap * 3, 0.5, 0, TAU); c.fill();
+  oval(c, 0, 0, 13, 10, '#ffcf2e', 3);
+  c.fillStyle = '#2a1a1a'; c.fillRect(-4, -9, 4, 18); c.fillRect(4, -8, 3, 16);
+  c.fillStyle = '#100808'; c.beginPath(); c.arc(10, -2, 2, 0, TAU); c.fill();
+  c.fillStyle = '#2a1a1a'; c.beginPath(); c.moveTo(-13, 0); c.lineTo(-19, 2); c.lineTo(-13, 4); c.fill();
+  c.restore();
+}
+
+// ハチの巣 (原点 = 吊り下がる所)
+export function drawHive(c, t) {
+  c.save(); c.rotate(Math.sin(t * 1.5) * 0.05);
+  c.strokeStyle = '#5a3a20'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, -40); c.lineTo(0, 0); c.stroke();
+  for (let k = 0; k < 4; k++) oval(c, 0, 14 + k * 16, 30 - Math.abs(k - 1.5) * 6, 11, k % 2 ? '#d99a2a' : '#e8b440', 3);
+  oval(c, 0, 50, 7, 6, '#3a2010', 0);
+  c.restore();
 }
