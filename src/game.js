@@ -28,6 +28,12 @@ export const STAGES = [
   { id: '2-3', name: 'のんびり ナマケモノ', height: 3300, gap: [165, 215], water: 30, fruits: 10, gimmick: 'sloth', seed: 7097 },
   { id: '2-4', name: 'ブンブン ハチ', height: 3400, gap: [165, 215], water: 36, fruits: 10, gimmick: 'bees', seed: 103 },
   { id: '2-5', name: 'どうぶつの もりの てっぺん', height: 4400, gap: [160, 210], water: 39, fruits: 12, gimmick: 'mix2', seed: 9157 },
+  // ワールド 3 あらしの よる (2026-10-17): 夜と嵐の仕掛けを 1 面に 1 つずつ
+  { id: '3-1', name: 'ビュービュー かぜ', height: 3000, gap: [160, 210], water: 27, fruits: 9, gimmick: 'wind', wind: 1, seed: 301 },
+  { id: '3-2', name: 'ピカッと かみなり', height: 3200, gap: [160, 210], water: 30, fruits: 10, gimmick: 'storm', seed: 311 },
+  { id: '3-3', name: 'すべる つる', height: 3300, gap: [165, 215], water: 30, fruits: 10, gimmick: 'wet', seed: 313 },
+  { id: '3-4', name: 'よるの フクロウ', height: 3400, gap: [165, 215], water: 32, fruits: 10, gimmick: 'owl', seed: 317 },
+  { id: '3-5', name: 'あらしの てっぺん', height: 4400, gap: [160, 210], water: 36, fruits: 12, gimmick: 'mix3', wind: 0.7, seed: 331 },
 ];
 export const worldOf = st => Number(st.id[0]);
 
@@ -37,6 +43,33 @@ export const GIR_H = 520, GIR_UP = 300, GIR_DOWN = 150;
 export const TRUNK_WIND = 0.45, TRUNK_VY = -1750;
 // ハチ: 群れに当たるとロープが外れる (ハートは減らない)。当たり判定の半径
 export const BEE_R = 62;
+// 風: WIND_CYCLE 秒ごとに WIND_GUST 秒の横風。吹く前の WIND_WARN 秒は葉が舞って向きを知らせる。向きは毎回入れかわる
+export const WIND_ACC = 650, WIND_CYCLE = 5.2, WIND_WARN = 1.0, WIND_GUST = 1.6;
+// かみなりの枝: STORM_P 秒ごとに、STORM_GLOW 秒光ってから雷が落ち、STORM_DOWN 秒つかめない
+export const STORM_P = 6.0, STORM_GLOW = 1.1, STORM_DOWN = 1.8;
+// ぬれたつる: つかまっている間 WET_SLIP/秒で下へすべり、WET_MAX すべると手が離れる
+export const WET_SLIP = 75, WET_MAX = 200;
+// フクロウ: 輪を描いて飛ぶ。つかまると輪を描きながら OWL_RISE/秒で上がる
+export const OWL_R = 130, OWL_OM = 1.15, OWL_RISE = 240;
+export const FLYERS = new Set(['bird', 'owl']);
+
+export function windAt(w, t) {
+  const s = w.stage.wind;
+  if (!s) return { acc: 0, warn: 0, dir: 0 };
+  const k = Math.floor(t / WIND_CYCLE), u = t - k * WIND_CYCLE;
+  const dir = k % 2 ? -1 : 1;
+  const gs = WIND_CYCLE - WIND_GUST, ws = gs - WIND_WARN;
+  const acc = u >= gs ? s * WIND_ACC * dir * Math.min(1, (u - gs) / 0.25) : 0;
+  const warn = u >= ws && u < gs ? (u - ws) / WIND_WARN : 0;
+  return { acc, warn, dir };
+}
+
+export function stormState(a, t) {
+  const u = ((t + a.phase) % STORM_P + STORM_P) % STORM_P;
+  if (u >= STORM_P - STORM_DOWN) return 'down';
+  if (u >= STORM_P - STORM_DOWN - STORM_GLOW) return 'glow';
+  return 'ok';
+}
 
 export function rng(seed) {
   let s = (seed * 2654435761) >>> 0 || 1;
@@ -60,8 +93,21 @@ function birdFreePos(b, t) {
   return { x, y: b.lane + Math.sin(t * 2.2 + b.phase) * 14, vx: forward ? b.speed : -b.speed, vy: 0, dir: forward ? 1 : -1 };
 }
 
+function owlCircle(cx, cy, ang, om, vcy = 0) {
+  return { x: cx + Math.cos(ang) * OWL_R, y: cy + Math.sin(ang) * OWL_R, vx: -Math.sin(ang) * OWL_R * om, vy: Math.cos(ang) * OWL_R * om + vcy, dir: -Math.sin(ang) * om >= 0 ? 1 : -1 };
+}
+
 export function anchorPos(w, a, t = w.t) {
-  if (a.kind === 'bird') {
+  if (a.kind === 'owl' && a.mode !== 'leave') {
+    if (a.mode === 'carry') {
+      const d = t - a.modeT;
+      const p = owlCircle(a.ccx, a.ccy - OWL_RISE * d, a.cang + a.om * d, a.om, -OWL_RISE);
+      const x = clamp(p.x, 70, FOREST_W - 70);
+      return { ...p, x };
+    }
+    return owlCircle(a.cx, a.cy, a.phase + a.om * t, a.om);
+  }
+  if (FLYERS.has(a.kind)) {
     if (a.mode === 'carry' || a.mode === 'leave') {
       const d = t - a.modeT;
       const x = clamp(a.cx + a.cvx * d, 70, FOREST_W - 70);
@@ -88,7 +134,8 @@ export function beePos(b, t) {
 
 export function grabbable(w, a, t = w.t) {
   if (a.kind === 'thin') return !a.broken;
-  if (a.kind === 'bird') return a.mode === 'free' && t >= (a.restUntil || 0);
+  if (FLYERS.has(a.kind)) return a.mode === 'free' && t >= (a.restUntil || 0);
+  if (a.kind === 'storm') return stormState(a, t) !== 'down';
   if (a.kind === 'trunk') return t >= (a.restUntil || 0);
   return true;
 }
@@ -131,6 +178,9 @@ export function buildLevel(stageIndex) {
       else if ((g === 'trunk' || g === 'mix2') && segment % (g === 'trunk' ? 5 : 9) === 3) special = 'trunk';
       else if ((g === 'sloth' || g === 'mix2') && segment % (g === 'sloth' ? 4 : 9) === (g === 'sloth' ? 2 : 6)) special = 'sloth';
       else if (g === 'mix2' && R() < 0.12) kind = 'thin';
+      else if ((g === 'owl' || g === 'mix3') && segment % (g === 'owl' ? 5 : 8) === 0) special = 'owl';
+      else if ((g === 'wet' || g === 'mix3') && segment % (g === 'wet' ? 4 : 8) === 2) special = 'vine';
+      else if ((g === 'storm' || g === 'mix3') && R() < (g === 'storm' ? 0.6 : 0.22)) kind = 'storm';
     }
     // ハチの群れ: この 1 歩の途中を左右に行き来する (普通の 1 歩に重ねる)
     const bee = segment > 3 && !special && ((g === 'bees' && segment % 3 === 1) || (g === 'mix2' && segment % 7 === 4));
@@ -144,9 +194,14 @@ export function buildLevel(stageIndex) {
       // 大きな切れ目: 上から長いつるが垂れている
       const top = y - gap - 360;
       const vx = clamp(x + dir * rand(90, 160), 130, FOREST_W - 130);
-      add({ kind: 'vine', x: vx, y: top, len: 300, chain: true });
+      add({ kind: 'vine', x: vx, y: top, len: 300, chain: true, wet: g === 'wet' || g === 'mix3' });
       gap = gap + 330;
       pendingVine++;
+    } else if (special === 'owl') {
+      // 大きな切れ目: フクロウが輪を描いて飛んでいる。つかまると輪を描きながら上へ運ぶ
+      const cx = clamp(x + dir * rand(60, 120), 70 + OWL_R, FOREST_W - 70 - OWL_R);
+      add({ kind: 'owl', cx, cy: y - 210, hx: cx, hy: y - 210, om: OWL_OM * (R() < 0.5 ? 1 : -1), phase: R() * 6, mode: 'free', chain: true });
+      gap = 560 + R() * 80;
     } else if (special === 'leaf') {
       // 切れ目の下に大きな葉 (トランポリン)
       leaves.push({ x: clamp(x + dir * 120, 140, FOREST_W - 140), y: y + 120, w: 170 });
@@ -183,6 +238,8 @@ export function buildLevel(stageIndex) {
       if (hyp(ddx, gap) > 320) fy = y - Math.sqrt(Math.max(100 * 100, 320 * 320 - ddx * ddx));
     }
     const a = add({ kind, x: nx, y: fy, chain: true, size: 0.85 + R() * 0.4 });
+    // かみなりの枝は枝ごとに落ちる時をずらす (乱数を使わず、ほかの面の作りを変えない)
+    if (kind === 'storm') a.phase = (a.id * 2.37) % STORM_P;
     chain.push(a);
     if (bee) bees.push({ x0: (x + nx) / 2, y: (y + fy) / 2 + 30, span: 260, sp: 0.55, phase: R() * 6 });
     // 同じ向きに続けて進むこともある (森の横の広さを使う)
@@ -194,10 +251,11 @@ export function buildLevel(stageIndex) {
   const extras = Math.round(st.height / 130);
   for (let k = 0, tries = 0; k < extras && tries < 1600; tries++) {
     const ey = rand(goalY + 300, -380);
-    const near = chain.reduce((b, a) => (a.kind !== 'bird' && Math.abs(a.y - ey) < Math.abs(b.y - ey) ? a : b), chain[0]);
+    const near = chain.reduce((b, a) => (!FLYERS.has(a.kind) && Math.abs(a.y - ey) < Math.abs(b.y - ey) ? a : b), chain[0]);
     const ex = clamp(near.x + rand(-450, 450), 130, FOREST_W - 130);
     if (anchors.some(a => STATIC.has(a.kind) && hyp((a.x ?? 0) - ex, (a.kind === 'vine' ? a.y + a.len : a.y) - ey) < 150)) continue;
     if (anchors.some(a => a.kind === 'bird' && Math.abs(a.lane - ey) < 120)) continue;
+    if (anchors.some(a => a.kind === 'owl' && ey > a.cy - 420 && ey < a.cy + 160 && Math.abs(a.cx - ex) < 600)) continue;
     // 動物の仕掛けの切れ目には寄り道の枝を置かない (仕掛けを使わずに越えられてしまうので)
     if (anchors.some(a => a.kind === 'giraffe' && Math.abs(a.x - ex) < 520 && ey < a.baseY + 40 && ey > a.baseY - GIR_H - 40)) continue;
     if (anchors.some(a => a.kind === 'trunk' && Math.abs(a.x - ex) < 520 && ey < a.y + 40 && ey > a.y - 520)) continue;
@@ -206,7 +264,7 @@ export function buildLevel(stageIndex) {
     k++;
   }
   // くだもの: 道の枝と枝の間、飛んだ時の山の頂上あたり
-  const chainBranches = chain.filter(a => a.kind !== 'bird');
+  const chainBranches = chain.filter(a => !FLYERS.has(a.kind));
   const step = Math.max(1, Math.floor((chainBranches.length - 1) / st.fruits));
   for (let i = 1; i < chainBranches.length && fruits.length < st.fruits; i += step) {
     const a = chainBranches[i - 1], b = chainBranches[i];
@@ -222,7 +280,7 @@ export function buildLevel(stageIndex) {
   top.goal = true; top.size = 1.6; top.baby = top.baby || false;
   return { stage: st, anchors, fruits, leaves, bees, goalY: top.y - 60, chain };
 }
-const STATIC = new Set(['branch', 'thin', 'vine', 'trunk']);
+const STATIC = new Set(['branch', 'thin', 'vine', 'trunk', 'storm']);
 
 export function createWorld(stageIndex) {
   const lv = buildLevel(stageIndex);
@@ -291,7 +349,7 @@ export function lift(w) {
 function release(w) {
   const m = w.m;
   const a = m.anchor;
-  if (a && a.kind === 'bird') birdDrop(w, a);
+  if (a && FLYERS.has(a.kind)) birdDrop(w, a);
   const nice = Math.abs(m.rot) < 0.1 ? false : m.vy < -200 && Math.abs(Math.atan2(-m.vy, Math.abs(m.vx))) > 0.6;
   m.mode = 'fly'; m.anchor = null;
   w.lastRelease = w.t; w.autoRelease = null;
@@ -311,6 +369,7 @@ function attach(w, a) {
   m.prevPhi = Math.atan2(m.x - p.x, m.y - p.y);
   m.L = Math.max(70, hyp(m.x - p.x, m.y - p.y));
   if (a.kind === 'vine') m.L = Math.min(m.L, a.len + 50);
+  if (a.wet) a.slipStartL = m.L;
   m.Lmin = Math.max(80, m.L * 0.78);
   w.rope = null;
   const chained = w.lastRelease > 0 && w.t - w.lastRelease < 1.3;
@@ -322,6 +381,10 @@ function attach(w, a) {
   }
   if (a.kind === 'bird') {
     a.mode = 'carry'; a.modeT = w.t; a.cx = p.x; a.cy = p.y; a.cvx = p.vx * 0.8; a.cvy = -250;
+    m.L = Math.min(m.L, 170); m.Lmin = m.L;
+  }
+  if (a.kind === 'owl') {
+    a.mode = 'carry'; a.modeT = w.t; a.ccx = a.cx; a.ccy = a.cy; a.cang = a.phase + a.om * w.t;
     m.L = Math.min(m.L, 170); m.Lmin = m.L;
   }
   if (a.kind === 'thin') { a.holdStart = w.t; }
@@ -349,7 +412,7 @@ function splash(w) {
   m.y = w.water - 60; m.vx *= 0.3; m.vy = -1650;
   // 水しぶきで、少し上の道の枝の真下あたりへ跳ね上げる (横へ飛びすぎても道に戻れる)
   let best = null;
-  for (const a of w.chain) { if (a.kind === 'bird') continue; const d = Math.abs(a.y - (m.y - 400)); if (!best || d < best.d) best = { a, d }; }
+  for (const a of w.chain) { if (FLYERS.has(a.kind)) continue; const d = Math.abs(a.y - (m.y - 400)); if (!best || d < best.d) best = { a, d }; }
   if (best) {
     const tx = best.a.x;
     if (Math.abs(tx - m.x) > 1100) m.x = tx - Math.sign(tx - m.x) * 1100;
@@ -370,13 +433,33 @@ export function step(w) {
 
   // 鳥の状態
   for (const a of w.anchors) {
-    if (a.kind !== 'bird') continue;
+    if (!FLYERS.has(a.kind)) continue;
     if (a.mode === 'carry') {
       const d = w.t - a.modeT;
-      if (d > 1.6 && !a.tired) { a.tired = true; ev(w, 'birdTired', { x: a.cx, y: a.cy }); }
-      if (d > 2.5 && m.mode === 'hang' && m.anchor === a) { release(w); ev(w, 'birdDrop'); }
+      if (d > 1.6 && !a.tired) { a.tired = true; const p = anchorPos(w, a); ev(w, 'birdTired', { x: p.x, y: p.y, kind: a.kind }); }
+      if (d > 2.5 && m.mode === 'hang' && m.anchor === a) { release(w); ev(w, 'birdDrop', { kind: a.kind }); }
     }
-    if (a.mode === 'leave' && w.t > a.returnAt) { a.mode = 'free'; a.tired = false; a.restUntil = w.t + 1.0; }
+    if (a.mode === 'leave' && w.t > a.returnAt) {
+      a.mode = 'free'; a.tired = false; a.restUntil = w.t + 1.0;
+      // フクロウは元の輪へ戻る (離した所を中心にすると、取り逃がした後に届かなくなる)
+      if (a.kind === 'owl') { a.cx = a.hx; a.cy = a.hy; }
+    }
+  }
+  // かみなりの枝: 光ってから雷が落ちる。つかまっていたら手が離れる。しばらくすると元に戻る
+  for (const a of w.anchors) {
+    if (a.kind !== 'storm') continue;
+    const s = stormState(a, w.t);
+    if (s !== a.state) {
+      if (s === 'glow') ev(w, 'stormGlow', { x: a.x, y: a.y });
+      if (s === 'down') { ev(w, 'zap', { x: a.x, y: a.y }); if (m.mode === 'hang' && m.anchor === a) release(w); }
+      a.state = s;
+    }
+  }
+  // ぬれたつる: つかまっている間、少しずつ下へすべる。すべりきると手が離れる
+  if (m.mode === 'hang' && m.anchor.wet) {
+    const a = m.anchor;
+    m.L += WET_SLIP * DT; m.Lmin = m.L;
+    if (m.L - a.slipStartL > WET_MAX) { release(w); ev(w, 'slipOff', { x: m.x, y: m.y }); }
   }
   // 細い枝: ミシッ → ひび → 折れる。しばらくすると生え直す
   for (const a of w.anchors) {
@@ -431,7 +514,7 @@ export function step(w) {
   if (m.mode === 'hang') {
     const p = anchorPos(w, m.anchor);
     const f = phiOf(m, p);
-    if (w.holding && Math.abs(f) < 0.65 && m.anchor.kind !== 'bird') {
+    if (w.holding && Math.abs(f) < 0.65 && !FLYERS.has(m.anchor.kind)) {
       const dx = m.x - p.x, dy = m.y - p.y, r = hyp(dx, dy) || 1;
       const tvx = m.vx - p.vx, tvy = m.vy - p.vy;
       const sgn = Math.sign(dy * tvx - dx * tvy) || 1;
@@ -439,6 +522,10 @@ export function step(w) {
       m.vy += sgn * (-dx / r) * 1500 * DT;
     }
   }
+  // 風: 飛んでいる時は強く、ぶら下がっている時は弱く横へ押す
+  const wa = windAt(w, w.t).acc;
+  if (wa && m.mode === 'fly') m.vx += wa * DT;
+  else if (wa && m.mode === 'hang' && !FLYERS.has(m.anchor.kind)) m.vx += wa * 0.4 * DT;
   // 空中では横の勢いが少しずつ弱まる (壁がない代わりに、横へ飛んでいきすぎない)。水しぶきの直後は弱めない
   if (m.mode === 'fly' && !(w.invuln > w.t)) m.vx *= Math.exp(-AIR_DRAG * DT);
   m.x += m.vx * DT; m.y += m.vy * DT;

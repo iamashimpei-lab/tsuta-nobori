@@ -14,6 +14,7 @@ BY-SA の録音から作った声は、同じ CC BY-SA で配布します。
 - Role-of-vocal-tract-characteristics-in-individual-discrimination-by-Japanese-macaques-(Macaca-srep32042-s4.oga / Furuyama T, Kobayasi K, Riquimaroux H / CC BY 4.0 / https://commons.wikimedia.org/wiki/File:Role-of-vocal-tract-characteristics-in-individual-discrimination-by-Japanese-macaques-(Macaca-srep32042-s4.oga
 - Keel-billed toucan.ogg / Thatcher / CC BY-SA 3.0 / https://commons.wikimedia.org/wiki/File:Keel-billed_toucan.ogg
 - Lar Gibbon hoots.ogg / FunkMonk / CC BY-SA 3.0 / https://commons.wikimedia.org/wiki/File:Lar_Gibbon_hoots.ogg
+- Strix aluco male.oga / Vianney Bajart / CC BY-SA 4.0 / https://commons.wikimedia.org/wiki/File:Strix_aluco_male.oga
 - Pant-hoot call made by a male chimpanzee.ogg / Pawel Fedurek et al. / CC BY 4.0 / https://commons.wikimedia.org/wiki/File:Pant-hoot_call_made_by_a_male_chimpanzee.ogg
 - Red-Billed Toucan 2.ogg / soundbytez / CC BY 3.0 / https://commons.wikimedia.org/wiki/File:Red-Billed_Toucan_2.ogg
 - Toco Toucan call (Ramphastos toco).ogg / Fabrício Grigolin / CC BY 4.0 / https://commons.wikimedia.org/wiki/File:Toco_Toucan_call_(Ramphastos_toco).ogg

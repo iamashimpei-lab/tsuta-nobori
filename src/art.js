@@ -199,6 +199,21 @@ function drawHat(c, kind) {
       c.strokeStyle = '#e8b64a'; c.lineWidth = 4.5; c.beginPath(); c.moveTo(d * 9, 12); c.lineTo(d * 11, -4); c.stroke();
       oval(c, d * 11, -6, 5.5, 5.5, '#7a4626', 2.5);
     }
+  } else if (kind === 'umbrella') {
+    // かさ (赤と白)
+    c.strokeStyle = '#4a2a10'; c.lineWidth = 3; c.beginPath(); c.moveTo(4, 12); c.lineTo(4, -14); c.stroke();
+    c.beginPath(); c.moveTo(-26, -12); c.quadraticCurveTo(4, -46, 34, -12); c.closePath();
+    c.strokeStyle = OUT; c.lineWidth = 3; c.stroke();
+    c.fillStyle = '#ff5a6e'; c.fill();
+    c.fillStyle = '#fff4e8';
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(4, -29); c.quadraticCurveTo(4 + s * 8, -22, 4 + s * 14, -12); c.lineTo(4 + s * 4, -12); c.closePath(); c.fill(); }
+  } else if (kind === 'owlears') {
+    // フクロウのみみ (羽の房)
+    for (const d of [-1, 1]) {
+      c.beginPath(); c.moveTo(d * 4, 12); c.quadraticCurveTo(d * 10, -6, d * 22, -18); c.quadraticCurveTo(d * 20, 0, d * 16, 12); c.closePath();
+      c.strokeStyle = OUT; c.lineWidth = 3; c.stroke(); c.fillStyle = '#8a5a34'; c.fill();
+      c.strokeStyle = '#d9b07a'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(d * 9, 8); c.lineTo(d * 18, -10); c.stroke();
+    }
   } else if (kind === 'crown') {
     c.beginPath(); c.moveTo(-18, 12); c.lineTo(-18, -6); c.lineTo(-9, 3); c.lineTo(0, -12); c.lineTo(9, 3); c.lineTo(18, -6); c.lineTo(18, 12); c.closePath();
     c.strokeStyle = '#7a4a00'; c.lineWidth = 3; c.stroke();
@@ -580,5 +595,47 @@ export function drawHive(c, t) {
   c.strokeStyle = '#5a3a20'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, -40); c.lineTo(0, 0); c.stroke();
   for (let k = 0; k < 4; k++) oval(c, 0, 14 + k * 16, 30 - Math.abs(k - 1.5) * 6, 11, k % 2 ? '#d99a2a' : '#e8b440', 3);
   oval(c, 0, 50, 7, 6, '#3a2010', 0);
+  c.restore();
+}
+
+// ---- フクロウ (原点 = つかむ足)。夜の森で見えるよう、明るめの茶色と大きな黄色い目 ----
+export function drawOwl(c, t, o = {}) {
+  const flap = Math.sin(t * (o.tired ? 26 : 9) + (o.phase || 0));
+  c.save(); c.scale(o.dir || 1, 1);
+  // 羽 (左右に大きく広げてはばたく)
+  for (const d of [-1, 1]) {
+    c.save(); c.translate(d * 18, -34); c.rotate(d * (0.5 + flap * 0.45));
+    c.beginPath(); c.ellipse(d * 30, 0, 36, 14, 0, 0, TAU); c.strokeStyle = OUT; c.lineWidth = 3.5; c.stroke();
+    c.fillStyle = radial(c, d * 30, 0, 36, '#b07a48', '#6a4326'); c.fill();
+    c.strokeStyle = 'rgba(255,230,190,0.5)'; c.lineWidth = 2;
+    for (let k = 1; k < 4; k++) { c.beginPath(); c.moveTo(d * (10 + k * 12), -8); c.lineTo(d * (14 + k * 12), 8); c.stroke(); }
+    c.restore();
+  }
+  // 体
+  c.beginPath(); c.ellipse(0, -36, 28, 34, 0, 0, TAU); c.strokeStyle = OUT; c.lineWidth = 4; c.stroke();
+  c.fillStyle = radial(c, 0, -36, 34, '#c8925a', '#7a4f2c'); c.fill();
+  // お腹のもよう
+  c.beginPath(); c.ellipse(0, -24, 17, 20, 0, 0, TAU); c.fillStyle = '#f0d4a8'; c.fill();
+  c.strokeStyle = '#a8784a'; c.lineWidth = 2;
+  for (let k = 0; k < 3; k++) for (const dx of [-7, 0, 7]) { c.beginPath(); c.moveTo(dx - 3, -32 + k * 9); c.quadraticCurveTo(dx, -29 + k * 9, dx + 3, -32 + k * 9); c.stroke(); }
+  // 顔の輪と耳の房
+  for (const d of [-1, 1]) {
+    c.beginPath(); c.moveTo(d * 12, -64); c.lineTo(d * 22, -82); c.lineTo(d * 24, -62); c.closePath();
+    c.strokeStyle = OUT; c.lineWidth = 3; c.stroke(); c.fillStyle = '#7a4f2c'; c.fill();
+  }
+  c.beginPath(); c.ellipse(0, -56, 24, 16, 0, 0, TAU); c.fillStyle = '#e8c08a'; c.fill();
+  // 大きな目
+  const blink = o.tired ? 0.35 : 1;
+  for (const d of [-1, 1]) {
+    oval(c, d * 10, -57, 9, 9, '#ffd23f', 2.5);
+    oval(c, d * 10, -57, 4.5, 4.5 * blink, '#101010', 0);
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(d * 10 + 1.5, -59, 1.4, 0, TAU); c.fill();
+  }
+  // くちばし
+  c.beginPath(); c.moveTo(-4, -50); c.lineTo(4, -50); c.lineTo(0, -42); c.closePath(); c.fillStyle = '#e8a030'; c.fill();
+  // 足
+  c.strokeStyle = '#e0a030'; c.lineWidth = 4; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(-7, -4); c.lineTo(-6, 4); c.moveTo(7, -4); c.lineTo(6, 4); c.stroke();
+  if (o.tired) { c.fillStyle = '#a8e2ff'; c.beginPath(); c.moveTo(26, -74); c.quadraticCurveTo(32, -64, 26, -62); c.quadraticCurveTo(20, -64, 26, -74); c.fill(); }
   c.restore();
 }

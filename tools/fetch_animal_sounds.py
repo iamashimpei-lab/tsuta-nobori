@@ -25,6 +25,7 @@ FILES = {
     "toco": "File:Toco Toucan call (Ramphastos toco).ogg",
     "redbill": "File:Red-Billed Toucan 2.ogg",
     "elephant": "File:Elephant voice - trumpeting.ogg",  # CC0 (2026-10-16 ワールド 2 のゾウ)
+    "owl": "File:Strix aluco male.oga",  # CC BY-SA 4.0 (2026-10-17 ワールド 3 のフクロウ)
 }
 
 

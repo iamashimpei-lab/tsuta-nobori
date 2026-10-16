@@ -1,5 +1,5 @@
 // つたのぼり: 画面の流れ・入力・保存
-import { createWorld, step, press, lift, stars, STAGES, DT, BODY, beePos, worldOf } from './game.js';
+import { createWorld, step, press, lift, stars, STAGES, DT, BODY, beePos, worldOf, windAt } from './game.js';
 import { createRenderer } from './render.js';
 import { unlockAudio, sfx, startMusic, setTension, setSound, voice, loadVoices } from './audio.js';
 import { VOICE_IDS } from './voices.js';
@@ -13,9 +13,11 @@ const HATS = [
   { id: 'flower', name: 'おはな', cost: 35 },
   { id: 'antenna', name: 'ハチの しょっかく', cost: 45 },
   { id: 'horns', name: 'キリンの つの', cost: 60 },
+  { id: 'umbrella', name: 'かさ', cost: 50 },
+  { id: 'owlears', name: 'フクロウの みみ', cost: 70 },
   { id: 'crown', name: 'おうかん', cost: 80 },
 ];
-const WORLD_NAMES = { 1: 'ワールド 1  ジャングル', 2: 'ワールド 2  どうぶつの もり' };
+const WORLD_NAMES = { 1: 'ワールド 1  ジャングル', 2: 'ワールド 2  どうぶつの もり', 3: 'ワールド 3  あらしの よる' };
 const ROPES = [
   { id: 'green', name: 'みどり', cost: 0, col: ['#2f5a24', '#7cb342'] },
   { id: 'red', name: 'あか', cost: 10, col: ['#7a1f2a', '#ff5a6e'] },
@@ -243,7 +245,8 @@ function playVoice(e) {
   switch (e.type) {
     case 'release': if (r < 0.55) voice('jump'); break;
     case 'attach':
-      if (e.kind === 'bird') { voice('tgrab'); setTimeout(() => { if (world && world.m.anchor && world.m.anchor.kind === 'bird') voice('tcarry'); }, 1100); }
+      if (e.kind === 'owl') voice('ohoot');
+      else if (e.kind === 'bird') { voice('tgrab'); setTimeout(() => { if (world && world.m.anchor && world.m.anchor.kind === 'bird') voice('tcarry'); }, 1100); }
       else if (e.combo >= 4 && e.combo % 2 === 0) voice('combo');
       else if (r < 0.45) voice('grab');
       break;
@@ -255,8 +258,8 @@ function playVoice(e) {
     case 'bounce': voice('bounce'); break;
     case 'fruit': if (r < 0.35) voice('fruit', 0.8); break;
     case 'baby': voice('saved'); break;
-    case 'birdTired': voice('ttired'); break;
-    case 'birdDrop': voice('tdrop'); break;
+    case 'birdTired': if (e.kind !== 'owl') voice('ttired'); break;
+    case 'birdDrop': voice(e.kind === 'owl' ? 'odrop' : 'tdrop'); break;
     case 'trunkThrow': voice('etrumpet'); break;
   }
 }
@@ -283,6 +286,9 @@ function playEvents(evs) {
       case 'trunkWind': sfx.trunkWind(); break;
       case 'trunkThrow': sfx.trunkThrow(); break;
       case 'giraffeTop': sfx.giraffeTop(); break;
+      case 'zap': sfx.zap(); break;
+      case 'stormGlow': sfx.stormGlow(); break;
+      case 'slipOff': sfx.slip(); break;
       case 'clear': sfx.clear(); break;
       case 'fail': sfx.fail(); break;
     }
@@ -294,7 +300,7 @@ function frame(now) {
   try { frameBody(now); } catch (err) { reportError(err); }
 }
 
-let lastErr = 0, lastBuzz = 0;
+let lastErr = 0, lastBuzz = 0, windWarned = false;
 // ホームの一番下: 最終更新 (取り込めているかの目印) と、もしあれば最後のエラー
 function showFooter() {
   let err = '';
@@ -340,6 +346,12 @@ function frameBody(now) {
       let near = 1e9;
       for (const b of world.bees) { const p = beePos(b, world.t); near = Math.min(near, Math.hypot(p.x - world.m.x, p.y - world.m.y)); }
       if (near < 520) { lastBuzz = now; sfx.buzz(1 - near / 520); }
+    }
+    // 風の面: 吹く前の葉が舞い始めた時に、ヒューッと知らせる
+    if (world.state === 'play' && world.stage.wind) {
+      const wd = windAt(world, world.t);
+      if (wd.warn > 0 && !windWarned) sfx.wind(world.stage.wind);
+      windWarned = wd.warn > 0;
     }
     wasTense = tension > 0.6;
     // 画面に子ザルが見えている間、ときどき「たすけてー！」

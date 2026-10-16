@@ -83,6 +83,11 @@ export const sfx = {
   baby() { [784, 988, 1175, 1568].forEach((f, k) => tone(f, 0.25, { at: k * 0.08, type: 'triangle', gain: 0.12 })); },
   // ワールド 2 (2026-10-16)
   sting() { noise(0.18, { freq: 2400, q: 3, gain: 0.18 }); tone(vary(1300), 0.2, { type: 'square', slideTo: 500, gain: 0.07 }); },
+  // ワールド 3: 雷・風・ぬれたつる
+  zap() { noise(0.9, { freq: 900, slideTo: 120, q: 0.5, gain: 0.4, type: 'lowpass' }); noise(0.15, { freq: 3000, q: 1, gain: 0.25 }); tone(vary(70), 0.8, { type: 'sawtooth', gain: 0.08, slideTo: 40 }); },
+  stormGlow() { noise(0.35, { freq: 4200, q: 4, gain: 0.07 }); tone(vary(1800), 0.25, { type: 'square', gain: 0.025, slideTo: 2400 }); },
+  wind(v) { noise(1.4, { freq: 500, slideTo: 1400, q: 1.2, gain: 0.1 + 0.1 * v }); },
+  slip() { tone(vary(700), 0.3, { slideTo: 250, gain: 0.12 }); noise(0.2, { freq: 3000, q: 2, gain: 0.06 }); },
   buzz(v) { noise(0.32, { freq: vary(520, 120), q: 6, gain: 0.05 + 0.12 * v }); tone(vary(210, 40), 0.32, { type: 'sawtooth', gain: 0.02 + 0.04 * v }); },
   trunkWind() { tone(vary(110), 0.45, { type: 'triangle', slideTo: 190, gain: 0.18 }); },
   trunkThrow() { tone(vary(330), 0.5, { type: 'sawtooth', slideTo: 620, gain: 0.12 }); tone(vary(495), 0.45, { type: 'square', slideTo: 900, gain: 0.05, at: 0.04 }); noise(0.5, { freq: 1600, slideTo: 3000, gain: 0.08 }); },
@@ -132,6 +137,7 @@ const VOICE_GROUPS = {
   fail: ['m_fail'], clear: ['m_clear'], bounce: ['m_bounce'], scared: ['m_scared'], fruit: ['m_fruit1', 'm_fruit2'],
   help: ['b_help1', 'b_help2'], saved: ['b_saved1', 'b_saved2'],
   tgrab: ['t_grab'], tcarry: ['t_carry1', 't_carry2'], ttired: ['t_tired'], tdrop: ['t_drop'], etrumpet: ['e_trumpet'],
+  ohoot: ['o_hoot1'], odrop: ['o_hoot2'],
 };
 // 大事な声 (痛い・クリア等) は鳴っている声を止めて割り込む。ふだんの声は間をあける
 const URGENT = new Set(['hurt', 'fail', 'clear', 'saved', 'loop', 'combo', 'tdrop', 'ttired']);
@@ -154,7 +160,7 @@ export function loadVoices(ids) {
 
 export function voice(group, gain = 1) {
   if (!ac || !sfxOn) return;
-  const who = group.startsWith('t') ? 'toucan' : (group === 'help' || group === 'saved') ? 'baby' : 'monkey';
+  const who = group.startsWith('t') ? 'toucan' : group.startsWith('o') ? 'owl' : (group === 'help' || group === 'saved') ? 'baby' : 'monkey';
   const now = ac.currentTime;
   const cur = speaking[who];
   if (cur && now < cur.end) {

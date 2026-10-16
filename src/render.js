@@ -1,8 +1,8 @@
 // つたのぼり: 描画
 // 色の役割 (550 Atelier の手順より): サル = 暖色 / つかめる物 = 黄色い光の輪 / 危険 = ピンク・赤 / 背景 = 暗く彩度低め
 // 影は黒を混ぜず、色相を紫・青緑へずらして暗くする。一番明るいのはサル、次につかめる物、背景が一番暗い
-import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable, beePos, BEE_R, TRUNK_WIND } from './game.js';
-import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite, drawGiraffe, drawElephant, drawSloth, drawBee, drawHive } from './art.js';
+import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable, beePos, BEE_R, TRUNK_WIND, worldOf, windAt, stormState, STORM_P, STORM_GLOW, STORM_DOWN } from './game.js';
+import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite, drawGiraffe, drawElephant, drawSloth, drawBee, drawHive, drawOwl } from './art.js';
 
 const FONT = '"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif';
 const PAL = {
@@ -38,7 +38,7 @@ export function createRenderer(canvas) {
     R.viewH = ch / R.scale;
   };
 
-  R.reset = () => { R.last = {}; R.camInit = false; R.particles = []; R.texts = []; R.flash = 0; R.shake = 0; R.hint = null; R.ringT = -9; R.squash = 1; };
+  R.reset = () => { R.last = {}; R.camInit = false; R.particles = []; R.texts = []; R.flash = 0; R.shake = 0; R.hint = null; R.ringT = -9; R.squash = 1; R.bolts = []; };
 
   // ---- 出来事から演出を作る ----
   R.onEvents = (w, evs) => {
@@ -89,6 +89,14 @@ export function createRenderer(canvas) {
         R.texts.push({ s: 'パオーン！', x: e.x, y: e.y - 70, t: w.t, c: '#e6ecff', size: 38, stroke: '#3a3a6a' });
       } else if (e.type === 'giraffeTop') {
         R.texts.push({ s: 'のび〜っ', x: e.x, y: e.y - 60, t: w.t, c: '#ffe7a0', size: 30, stroke: '#6a3a10' });
+      } else if (e.type === 'zap') {
+        R.flash = 0.55; R.shake = Math.max(R.shake, 12);
+        (R.bolts = R.bolts || []).push({ x: e.x, y: e.y, t: w.t, seed: Math.floor(w.t * 100) });
+        burst(e.x, e.y - 20, 18, ['#fff6a0', '#ffffff', '#8e6136'], 420, 0.8, 'chip');
+        R.texts.push({ s: 'ゴロゴロ ドーン！', x: e.x, y: e.y - 90, t: w.t, c: '#fff6a0', size: 36, stroke: '#3a2a6a' });
+      } else if (e.type === 'slipOff') {
+        burst(e.x, e.y, 10, ['#bfe7ff', '#ffffff'], 220, 0.5, 'drop');
+        R.texts.push({ s: 'つるっ', x: e.x + 40, y: e.y - 40, t: w.t, c: '#d9f3ff', size: 32, stroke: '#123a5a' });
       } else if (e.type === 'regrow') {
         burst(e.x, e.y, 10, ['#86d46a', '#ffffff'], 200, 0.5, 'leaf');
         R.texts.push({ s: 'にょきっ', x: e.x, y: e.y - 40, t: w.t, c: '#c8ff8a', size: 26 });
@@ -198,6 +206,71 @@ export function createRenderer(canvas) {
       fg.addColorStop(0, 'rgba(200,240,220,0)'); fg.addColorStop(0.5, `rgba(200,240,220,${0.07 + 0.05 * prog})`); fg.addColorStop(1, 'rgba(200,240,220,0)');
       ctx.fillStyle = fg; ctx.fillRect(L - 40, yy - 60, WORLD_W + 80, 120);
     }
+    if (worldOf(w.stage) === 3) night(w, t, top, L);
+  }
+
+  // ワールド 3 あらしの よる: 背景だけを夜の色に沈める (枝・サル・つかめる物は後から明るく描くので見え方は変わらない)
+  function night(w, t, top, L) {
+    ctx.fillStyle = 'rgba(16,20,58,0.62)'; ctx.fillRect(L - 40, top - 40, WORLD_W + 80, R.viewH + 80);
+    // 雲のすきまの月
+    const mx = L + WORLD_W * 0.8, my = top + 120;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(mx, my, 10, mx, my, 160);
+    g.addColorStop(0, 'rgba(220,230,255,0.35)'); g.addColorStop(1, 'rgba(220,230,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(mx - 160, my - 160, 320, 320); ctx.restore();
+    ctx.fillStyle = '#eef2ff'; ctx.beginPath(); ctx.arc(mx, my, 38, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(16,20,58,0.9)'; ctx.beginPath(); ctx.arc(mx + 16, my - 8, 34, 0, Math.PI * 2); ctx.fill();
+    // 流れる雲
+    for (let k = 0; k < 4; k++) {
+      const cx = L + ((k * 0.31 + t * 0.012) % 1.3) * WORLD_W * 1.1 - 150, cy = top + 60 + k * 70;
+      ctx.fillStyle = 'rgba(40,46,90,0.75)';
+      for (let j = 0; j < 4; j++) { ctx.beginPath(); ctx.ellipse(cx + j * 60, cy + (j % 2) * 10, 70, 30, 0, 0, Math.PI * 2); ctx.fill(); }
+    }
+    // 雷が近い枝のあたりの空が光る
+    const since = t - (R.last.zap ?? -9);
+    if (since < 0.5) { ctx.fillStyle = `rgba(200,210,255,${0.35 * (1 - since / 0.5)})`; ctx.fillRect(L - 40, top - 40, WORLD_W + 80, R.viewH + 80); }
+  }
+
+  // かみなりの枝の上の小さな雨雲 (どの枝に落ちるか、ふだんから見えるように)
+  function stormCloud(x, y, t, state, u) {
+    const glow = state === 'glow';
+    const bob = Math.sin(t * 2 + x) * 4;
+    if (glow) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const k = 0.5 + 0.5 * Math.sin(t * 22);
+      const g = ctx.createRadialGradient(x, y, 10, x, y, 150);
+      g.addColorStop(0, `rgba(255,120,170,${0.35 + 0.35 * k})`); g.addColorStop(1, 'rgba(255,120,170,0)');
+      ctx.fillStyle = g; ctx.fillRect(x - 150, y - 150, 300, 300); ctx.restore();
+    }
+    // 夜空に埋もれないよう、明るめの灰色に濃い縁取り
+    const puffs = [[-34, 0, 26], [0, -12, 34], [34, 0, 26], [0, 8, 28]];
+    ctx.strokeStyle = '#1c2148'; ctx.lineWidth = 8;
+    for (const [dx, dy, r] of puffs) { ctx.beginPath(); ctx.arc(x + dx, y - 170 + dy + bob, r, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillStyle = glow ? '#e4d4ff' : '#9aa2d0';
+    for (const [dx, dy, r] of puffs) { ctx.beginPath(); ctx.arc(x + dx, y - 170 + dy + bob, r, 0, Math.PI * 2); ctx.fill(); }
+    // 光っている間は、雲から枝へ小さな稲妻の予告
+    if (glow) {
+      ctx.strokeStyle = PAL.danger; ctx.lineWidth = 5; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y - 150 + bob); ctx.lineTo(x - 14, y - 115); ctx.lineTo(x + 8, y - 105); ctx.lineTo(x - 6, y - 70); ctx.stroke();
+      // あと何秒かを、雲の下の輪の減り方で見せる
+      const left = 1 - (u - (STORM_P - STORM_DOWN - STORM_GLOW)) / STORM_GLOW;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y - 170 + bob, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); ctx.stroke();
+    }
+  }
+
+  function boltsDraw(w) {
+    if (!R.bolts) return;
+    R.bolts = R.bolts.filter(b => w.t - b.t < 0.35);
+    for (const b of R.bolts) {
+      const a = 1 - (w.t - b.t) / 0.35;
+      for (const [col, lw] of [[`rgba(180,160,255,${0.6 * a})`, 16], [`rgba(255,255,255,${a})`, 6]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(b.x + 60, b.y - 900);
+        for (let k = 1; k <= 8; k++) ctx.lineTo(b.x + (hash(b.seed + k) - 0.5) * 120 * (1 - k / 8), b.y - 900 + k * 112);
+        ctx.stroke();
+      }
+    }
   }
 
   // 奥に立つ木の幹 (枝の生えもと。当たらないので少し暗くして奥に見せる)
@@ -242,7 +315,7 @@ export function createRenderer(canvas) {
   function anchors(w, t) {
     const m = w.m;
     for (const a of w.anchors) {
-      if (a.kind === 'bird' || ANIMALS.has(a.kind)) continue;
+      if (a.kind === 'bird' || a.kind === 'owl' || ANIMALS.has(a.kind)) continue;
       const p = anchorPos(w, a);
       const vy = a.kind === 'vine' ? p.y + a.len : p.y;
       if (!inView(p.y, 420) && !inView(vy, 300)) continue;
@@ -253,6 +326,20 @@ export function createRenderer(canvas) {
       // 枝 (いちばん近い幹から伸びる)
       const wx = trunkX(p.x);
       const side = wx < p.x ? -1 : 1; // 幹が左なら -1
+      if (a.kind === 'storm') {
+        const st = stormState(a, t);
+        const u = ((t + a.phase) % STORM_P + STORM_P) % STORM_P;
+        if (st === 'down') {
+          // 雷が落ちた跡: 黒くこげた短い枝と煙。しばらくすると元に戻る
+          ctx.strokeStyle = '#2a1a1a'; ctx.lineWidth = 12; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(wx, p.y - 60); ctx.lineTo(lerp(wx, p.x, 0.45), p.y - 66); ctx.stroke();
+          ctx.fillStyle = 'rgba(160,160,180,0.35)';
+          for (let k = 0; k < 3; k++) { const s = (t * 0.8 + k / 3) % 1; ctx.beginPath(); ctx.arc(lerp(wx, p.x, 0.45) + Math.sin(s * 6 + k) * 10, p.y - 70 - s * 90, 10 + s * 18, 0, Math.PI * 2); ctx.fill(); }
+          stormCloud(p.x, p.y, t, st, u);
+          continue;
+        }
+        stormCloud(p.x, p.y, t, st, u);
+      }
       const shake = a.kind === 'thin' && a.crack ? Math.sin(t * 60) * a.crack * 1.5 : 0;
       ctx.save(); ctx.translate(shake, 0);
       if (!(a.kind === 'thin' && a.broken)) {
@@ -343,7 +430,8 @@ export function createRenderer(canvas) {
     ctx.lineCap = 'round';
     const hanging = w.m.mode === 'hang' && w.m.anchor === a;
     const tipX = hanging ? w.m.x : p.x + sway, tipY = hanging ? w.m.y : p.y + a.len;
-    for (const [col, lw] of [[PAL.leafShade, 11], ['#5f9a3c', 7], ['#9ccf5a', 2.5]]) {
+    const cols = a.wet ? [['#1f3f5a', 11], ['#3f7f8a', 7], ['#bfefff', 2.5]] : [[PAL.leafShade, 11], ['#5f9a3c', 7], ['#9ccf5a', 2.5]];
+    for (const [col, lw] of cols) {
       ctx.strokeStyle = col; ctx.lineWidth = lw;
       ctx.beginPath(); ctx.moveTo(p.x, p.y);
       ctx.quadraticCurveTo(p.x + sway * 2, (p.y + tipY) / 2, tipX, tipY); ctx.stroke();
@@ -354,6 +442,16 @@ export function createRenderer(canvas) {
       const x = (1 - u) * (1 - u) * p.x + 2 * (1 - u) * u * (p.x + sway * 2) + u * u * tipX;
       const y = (1 - u) * (1 - u) * p.y + 2 * (1 - u) * u * ((p.y + tipY) / 2) + u * u * tipY;
       ctx.beginPath(); ctx.ellipse(x + (k % 2 ? 9 : -9), y, 10, 5, k % 2 ? 0.6 : -0.6, 0, Math.PI * 2); ctx.fill();
+    }
+    // ぬれたつる: しずくが落ちる
+    if (a.wet) {
+      ctx.fillStyle = '#d9f3ff';
+      for (let k = 0; k < 4; k++) {
+        const s = (t * 0.9 + k * 0.25) % 1, u = 0.3 + k * 0.17;
+        const x = (1 - u) * (1 - u) * p.x + 2 * (1 - u) * u * (p.x + sway * 2) + u * u * tipX;
+        const y = (1 - u) * (1 - u) * p.y + 2 * (1 - u) * u * ((p.y + tipY) / 2) + u * u * tipY;
+        ctx.beginPath(); ctx.ellipse(x + 6, y + s * 60, 3.5, 6, 0, 0, Math.PI * 2); ctx.fill();
+      }
     }
     if (!hanging) grabRing(tipX, tipY, t, a.id, reach);
   }
@@ -385,11 +483,12 @@ export function createRenderer(canvas) {
   function birds(w, t) {
     const m = w.m;
     for (const a of w.anchors) {
-      if (a.kind !== 'bird') continue;
+      if (a.kind !== 'bird' && a.kind !== 'owl') continue;
       const p = anchorPos(w, a);
       if (!inView(p.y, 150)) continue;
       ctx.save(); ctx.translate(p.x, p.y + 4); ctx.scale(1.15, 1.15);
-      drawToucan(ctx, t, { dir: p.dir || 1, tired: a.tired && a.mode === 'carry', phase: a.phase });
+      if (a.kind === 'owl') drawOwl(ctx, t, { dir: p.dir || 1, tired: a.tired && a.mode === 'carry', phase: a.phase });
+      else drawToucan(ctx, t, { dir: p.dir || 1, tired: a.tired && a.mode === 'carry', phase: a.phase });
       ctx.restore();
       if (grabbable(w, a)) grabRing(p.x, p.y + 4, t, a.phase, Math.hypot(p.x - m.x, p.y - m.y) < 360);
     }
@@ -491,7 +590,7 @@ export function createRenderer(canvas) {
     };
     if (m.mode === 'hang' && m.anchor && m.anchor.kind !== 'vine') {
       const p = anchorPos(w, m.anchor);
-      seg(p.x, p.y + (m.anchor.kind === 'bird' ? 26 : 0), m.x, m.y);
+      seg(p.x, p.y + (m.anchor.kind === 'bird' || m.anchor.kind === 'owl' ? 26 : 0), m.x, m.y);
     }
     if (w.rope) {
       seg(m.x, m.y, w.rope.x, w.rope.y);
@@ -656,6 +755,7 @@ export function createRenderer(canvas) {
       ctx.fillStyle = `rgba(220,245,255,${0.4 + 0.5 * k})`;
       for (let x = 0; x < cw; x += 60) { const yy = ch - 10 - Math.sin(t * 6 + x * 0.05) * 4; ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + 14, yy - 10 - k * 8); ctx.lineTo(x + 28, yy); ctx.fill(); }
     }
+    if (worldOf(w.stage) === 3) rainAndWind(w, t, cw, ch);
     if (R.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${R.flash})`; ctx.fillRect(0, 0, cw, ch); }
     // 速い時の風の線
     const sp = Math.hypot(w.m.vx, w.m.vy);
@@ -670,6 +770,46 @@ export function createRenderer(canvas) {
         ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx - 120 - hash(k) * 200, yy); ctx.stroke();
       }
       ctx.restore();
+    }
+  }
+
+  // 雨 (風の向きに傾く) と、風が吹く前に舞う葉っぱ
+  function rainAndWind(w, t, cw, ch) {
+    const wd = windAt(w, t);
+    const lean = wd.acc ? Math.sign(wd.acc) * 0.5 : wd.warn ? wd.dir * 0.2 * wd.warn : 0.08;
+    ctx.strokeStyle = 'rgba(190,210,255,0.35)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let k = 0; k < 70; k++) {
+      const x = hash(k * 13.1) * (cw + 200) - 100, sp = 900 + hash(k * 7.7) * 500;
+      const y = ((hash(k * 3.3) * ch + t * sp) % (ch + 60)) - 30;
+      ctx.moveTo(x + lean * (y), y); ctx.lineTo(x + lean * (y + 26), y + 26);
+    }
+    ctx.stroke();
+    // 葉っぱ: 吹く前 (warn) は少しずつ増え、吹いている間は画面いっぱいに流れる
+    const amt = wd.acc ? 1 : wd.warn;
+    if (amt > 0) {
+      const dir = wd.dir;
+      const n = Math.round(6 + 22 * amt);
+      for (let k = 0; k < n; k++) {
+        const sp = (wd.acc ? 900 : 380) + hash(k * 5.1) * 300;
+        const x0 = ((hash(k * 2.7) * (cw + 200) + t * sp) % (cw + 200)) - 100;
+        const x = dir > 0 ? x0 : cw - x0;
+        const y = hash(k * 9.3) * ch + Math.sin(t * 5 + k) * 30;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(t * 6 + k);
+        ctx.fillStyle = k % 3 ? '#7fd16a' : '#c9e88a';
+        ctx.beginPath(); ctx.ellipse(0, 0, 11, 5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      // 向きの矢印 (画面のはしに大きく)
+      if (wd.warn > 0) {
+        const ax = dir > 0 ? cw - 90 : 90, ay = ch * 0.42;
+        ctx.save(); ctx.translate(ax, ay); ctx.scale(dir, 1);
+        ctx.globalAlpha = 0.35 + 0.5 * Math.abs(Math.sin(t * 8));
+        ctx.fillStyle = '#e6f6ff'; ctx.strokeStyle = '#123a5a'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(-50, -18); ctx.lineTo(10, -18); ctx.lineTo(10, -40); ctx.lineTo(55, 0); ctx.lineTo(10, 40); ctx.lineTo(10, 18); ctx.lineTo(-50, 18); ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
@@ -691,6 +831,7 @@ export function createRenderer(canvas) {
     fruits(w, t);
     ground(w);
     birds(w, t);
+    boltsDraw(w);
     rope(w);
     monkey(w, t);
     particlesDraw(w, dt);
@@ -720,12 +861,15 @@ export function createRenderer(canvas) {
     ctx.fillStyle = '#6b9a4a'; ctx.fillRect(0, gy, WORLD_W, H - gy);
     ctx.fillStyle = '#5a8a3e'; ctx.fillRect(0, gy, WORLD_W, 14);
     // 前の列 = ワールド 1 の 5 匹、奥の列 (小さめ) = ワールド 2 の 5 匹
+    // いちばん奥の列 (さらに小さく) = ワールド 3 の 5 匹
     const spots = [[230, 'hut'], [500, 'swing'], [760, 'hut2'], [980, 'tower'], [380, 'pool'],
-      [130, 'hut2'], [360, 'tower'], [620, 'hut'], [870, 'swing'], [1080, 'hut']];
-    for (const i of [5, 6, 7, 8, 9, 0, 1, 2, 3, 4]) {
+      [130, 'hut2'], [360, 'tower'], [620, 'hut'], [870, 'swing'], [1080, 'hut'],
+      [250, 'swing'], [470, 'hut'], [700, 'tower'], [920, 'hut2'], [1100, 'swing']];
+    for (const i of [10, 11, 12, 13, 14, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4]) {
       const [x, kind] = spots[i];
       ctx.save();
-      if (i >= 5) { ctx.translate(x, gy - 150); ctx.scale(0.7, 0.7); ctx.translate(-x, -gy); }
+      if (i >= 10) { ctx.translate(x, gy - 250); ctx.scale(0.5, 0.5); ctx.translate(-x, -gy); }
+      else if (i >= 5) { ctx.translate(x, gy - 150); ctx.scale(0.7, 0.7); ctx.translate(-x, -gy); }
       drawSpot(i, x, kind);
       ctx.restore();
     }

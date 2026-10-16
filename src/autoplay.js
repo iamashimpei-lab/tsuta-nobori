@@ -1,8 +1,8 @@
 // 自動プレイの頭脳: 本物の入力 (press / lift) だけで遊ぶ。node の大量テストと、ブラウザのデモの両方で使う
-import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, FOREST_W, AIR_DRAG, beePos, BEE_R } from './game.js';
+import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, FOREST_W, AIR_DRAG, beePos, BEE_R, windAt, stormState, FLYERS, WET_SLIP, WET_MAX } from './game.js';
 
 const hyp = Math.hypot;
-const RIDES = new Set(['bird', 'vine', 'giraffe', 'trunk', 'sloth']);
+const RIDES = new Set(['bird', 'owl', 'vine', 'giraffe', 'trunk', 'sloth']);
 let FRUIT_SEEK = false;
 export function setFruitSeek(v) { FRUIT_SEEK = v; }
 
@@ -18,8 +18,12 @@ function simulateHang(w, m0, a, steps) {
     t += DT;
     const p = anchorPos(w, a, t);
     m.vy += G * DT;
+    const wa = windAt(w, t).acc;
+    if (wa && !FLYERS.has(a.kind)) m.vx += wa * 0.4 * DT;
+    if (a.wet) { m.L += WET_SLIP * DT; m.Lmin = m.L; if (m.L - a.slipStartL > WET_MAX) break; }
+    if (a.kind === 'storm' && stormState(a, t) === 'down') break;
     const f = Math.atan2(m.x - p.x, m.y - p.y);
-    if (Math.abs(f) < 0.65 && a.kind !== 'bird') {
+    if (Math.abs(f) < 0.65 && !FLYERS.has(a.kind)) {
       const dx = m.x - p.x, dy = m.y - p.y, r = hyp(dx, dy) || 1;
       const sgn = Math.sign(dy * (m.vx - p.vx) - dx * (m.vy - p.vy)) || 1;
       m.vx += sgn * (dy / r) * 1500 * DT; m.vy += sgn * (-dx / r) * 1500 * DT;
@@ -42,8 +46,16 @@ function simulateHang(w, m0, a, steps) {
 // 手を離した後の飛び方から、届く一番高い枝を探す
 function bestFrom(w, s, excl, minGainY) {
   let best = null;
+  // 風のある面は横の動きを細かく足し合わせて先読みする
+  const windy = !!w.stage.wind;
+  let wx = s.x, wvx = s.vx, wt = 0;
   for (let tau = 0.06; tau <= 1.1; tau += 0.04) {
-    const x = s.x + s.vx * (1 - Math.exp(-AIR_DRAG * tau)) / AIR_DRAG, y = s.y + s.vy * tau + 0.5 * G * tau * tau;
+    let x;
+    if (windy) {
+      while (wt < tau - 1e-9) { const h = Math.min(DT, tau - wt); wvx += windAt(w, s.t + wt).acc * h; wvx *= Math.exp(-AIR_DRAG * h); wx += wvx * h; wt += h; }
+      x = wx;
+    } else x = s.x + s.vx * (1 - Math.exp(-AIR_DRAG * tau)) / AIR_DRAG;
+    const y = s.y + s.vy * tau + 0.5 * G * tau * tau;
     if (x < -200 || x > FOREST_W + 200) break;
     if (y + BODY > w.water - (w.stage.water * (s.t - w.t + tau)) - 40) break;
     // ハチの群れに当たる飛び方は選ばない (見て避ける子どもと同じ)
@@ -52,6 +64,8 @@ function bestFrom(w, s, excl, minGainY) {
       if (a === excl) continue;
       const t = s.t + tau;
       if (!grabbable(w, a, t)) continue;
+      // もうすぐ雷が落ちる枝はつかまない
+      if (a.kind === 'storm' && stormState(a, t + 0.8) === 'down') continue;
       const gp = grabPoint(w, a, t);
       const d = hyp(gp.x - x, gp.y - y);
       if (d > ROPE_RANGE * 0.88 || d < 60) continue;
