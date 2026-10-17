@@ -1,5 +1,5 @@
 // つたのぼり: 画面の流れ・入力・保存
-import { createWorld, step, press, lift, stars, STAGES, DT, BODY, beePos, worldOf, windAt } from './game.js';
+import { createWorld, step, press, lift, stars, STAGES, DIFFS, DT, BODY, beePos, worldOf, windAt } from './game.js';
 import { createRenderer } from './render.js';
 import { unlockAudio, sfx, startMusic, setTension, setSound, voice, loadVoices } from './audio.js';
 import { VOICE_IDS } from './voices.js';
@@ -26,7 +26,7 @@ const ROPES = [
 ];
 
 function loadSave() {
-  const def = { stars: {}, bank: 0, babies: {}, owned: ['none', 'green'], hat: 'none', rope: 'green', music: true, sfx: true, tutorialDone: false };
+  const def = { stars: {}, bank: 0, babies: {}, owned: ['none', 'green'], hat: 'none', rope: 'green', music: true, sfx: true, tutorialDone: false, diff: 'normal' };
   try { return { ...def, ...JSON.parse(localStorage.getItem(SAVE_KEY) || '{}') }; } catch { return def; }
 }
 function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* 保存できない環境でも遊べる */ } }
@@ -48,7 +48,7 @@ function decorate(w) { w.hat = save.hat === 'none' ? null : save.hat; w.ropeColo
 function startStage(i) {
   stageIndex = i;
   demoBot = null;
-  world = createWorld(i); decorate(world);
+  world = createWorld(i, DIFFS[save.diff] ? save.diff : 'normal'); decorate(world);
   R.reset(); acc = 0; resultShown = false; evCursor = 0; activePointer = null;
   tutorialStep = i === 0 && !save.tutorialDone ? 1 : 0;
   mode = 'play';
@@ -108,6 +108,14 @@ function openTitle() {
 function openMap() {
   mode = 'map'; show('map'); startMusic('home');
   if (!world || !demoBot) newDemo();
+  // むずかしさ (かんたん = サルがゆっくり・つるが長い / むずかしい = 速く・短い)
+  const diffs = $('diffs'); diffs.innerHTML = '';
+  for (const [id, d] of Object.entries(DIFFS)) {
+    const b = document.createElement('button');
+    b.textContent = d.name; b.className = save.diff === id ? 'on' : '';
+    b.addEventListener('click', () => { sfx.tap(); save.diff = id; writeSave(); openMap(); });
+    diffs.appendChild(b);
+  }
   const list = $('stages'); list.innerHTML = '';
   STAGES.forEach((st, i) => {
     const unlocked = i === 0 || (save.stars[STAGES[i - 1].id] || []).some(Boolean);
@@ -318,7 +326,7 @@ function frameBody(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   visT += dt;
   if (mode === 'play' && world) {
-    acc += dt;
+    acc += dt * world.speed;
     let n = 0;
     while (acc >= DT && n < 12) {
       if (autoBot) autoBot.tick(world);

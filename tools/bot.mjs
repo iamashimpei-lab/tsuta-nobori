@@ -1,12 +1,12 @@
 // 自動プレイ: 何百回も試して、どの高さで水に落ちるか (みんなが詰まる場所) を数える
-// 使い方: node tools/bot.mjs [回数=300] [ぶれ秒=0.06] [面番号]
+// 使い方: node tools/bot.mjs [回数=300] [ぶれ秒=0.06] [面番号]  (むずかしさは DIFF=easy|normal|hard)
 import { createWorld, step, stars, STAGES } from '../src/game.js';
 import { createBot, setFruitSeek } from '../src/autoplay.js';
 
 setFruitSeek(!!process.env.FRUIT_SEEK);
 
 export function playOnce(stageIndex, seed, jitter = 0.06, maxT = 150) {
-  const w = createWorld(stageIndex);
+  const w = createWorld(stageIndex, process.env.DIFF || 'normal');
   const bot = createBot(seed, jitter);
   while (w.state === 'play' && w.t < maxT) {
     bot.tick(w);
@@ -21,7 +21,7 @@ export function playOnce(stageIndex, seed, jitter = 0.06, maxT = 150) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const runs = Number(process.argv[2] || 300);
   const jitter = Number(process.argv[3] || 0.06);
-  const only = process.argv[4] != null ? Number(process.argv[4]) : null;
+  const only = process.argv[4] != null && process.argv[4] !== '' ? Number(process.argv[4]) : null;
   for (let si = 0; si < STAGES.length; si++) {
     if (only != null && si !== only) continue;
     const res = [];

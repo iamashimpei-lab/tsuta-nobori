@@ -12,6 +12,12 @@ export const ROPE_RANGE = 360;
 export const ROPE_SPEED = 4200;
 export const BODY = 52; // 手 (ロープの先) から体の中心までの距離
 export const HEARTS = 3;
+// むずかしさ (2026-10-17 本人指示)。speed = 世界が進む速さ (サルの動きもそろって変わる)、rope = つるが届く長さ
+export const DIFFS = {
+  easy: { name: 'かんたん', speed: 0.85, rope: 430 },
+  normal: { name: 'ふつう', speed: 1, rope: ROPE_RANGE },
+  hard: { name: 'むずかしい', speed: 1.15, rope: 310 },
+};
 export const AIR_DRAG = 1.0; // 空中で横の勢いが弱まる速さ (1 秒で約 37% に)
 
 // ---- 面の設計 (ワールド 1) ----
@@ -282,7 +288,7 @@ export function buildLevel(stageIndex) {
 }
 const STATIC = new Set(['branch', 'thin', 'vine', 'trunk', 'storm']);
 
-export function createWorld(stageIndex) {
+export function createWorld(stageIndex, diff = 'normal') {
   const lv = buildLevel(stageIndex);
   const a0 = lv.anchors[0];
   const w = {
@@ -293,6 +299,7 @@ export function createWorld(stageIndex) {
     water: a0.y + 900, waterPause: 0, ground: a0.y + 390,
     hearts: HEARTS, combo: 0, maxCombo: 0, lastRelease: -9, whiffs: 0, fruitsGot: 0, baby: false,
     freeze: 0, state: 'play', events: [], height: 0, clearT: null, chain: lv.chain,
+    diff, speed: (DIFFS[diff] || DIFFS.normal).speed, ropeRange: (DIFFS[diff] || DIFFS.normal).rope,
   };
   w.started = false; // 最初に指を離すまで水は動かない
   return w;
@@ -311,7 +318,7 @@ export function pickTarget(w, tx, ty) {
     if (m.mode === 'hang' && m.anchor === a) continue;
     const g = grabPoint(w, a);
     const dx = g.x - m.x, dy = g.y - m.y, d = hyp(dx, dy);
-    if (d > ROPE_RANGE || d < 30) continue;
+    if (d > w.ropeRange || d < 30) continue;
     // 指の近く (110 以内) か、指の方向から 24 度以内なら候補
     const near = hyp(g.x - tx, g.y - ty);
     const cos = (dx * dx0 + dy * dy0) / (d * d0);
@@ -334,7 +341,7 @@ export function press(w, tx, ty) {
     w.rope = { phase: 'out', x: m.x, y: m.y, target };
   } else {
     const d = hyp(tx - m.x, ty - m.y) || 1;
-    w.rope = { phase: 'out', x: m.x, y: m.y, target: null, px: m.x + (tx - m.x) / d * ROPE_RANGE, py: m.y + (ty - m.y) / d * ROPE_RANGE };
+    w.rope = { phase: 'out', x: m.x, y: m.y, target: null, px: m.x + (tx - m.x) / d * w.ropeRange, py: m.y + (ty - m.y) / d * w.ropeRange };
   }
   ev(w, 'fire', { tx, ty, miss: !target });
 }

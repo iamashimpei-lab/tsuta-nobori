@@ -491,10 +491,35 @@ export function frondSprite(col) {
 }
 
 // ---- ワールド 2 どうぶつの森 (2026-10-16) ----
-// キリン (原点 = つかむ角の付け根。首は下へ長く伸び、体は画面の外)
+// キリン (原点 = つかむ角の付け根。首は下へ長く伸び、首の付け根に胴と 4 本の足がある)
+export const GIR_LEGS = 330; // 首の付け根から足の先までの高さ (足もとの葉の位置に使う)
 export function drawGiraffe(c, t, o = {}) {
   const dir = o.dir || 1, neck = o.neck || 900;
   c.save(); c.scale(dir, 1);
+  // 胴と足 (首より奥に描く)。首の付け根から後ろへ胴がのび、前が高く後ろが少し低い
+  const by = neck + 50, swish = Math.sin(t * 2.2) * 0.25;
+  c.lineCap = 'round';
+  for (const [x, back] of [[-238, 1], [-74, 1], [-206, 0], [-46, 0]]) {
+    const col = back ? '#c9973c' : '#e8b64a';
+    c.strokeStyle = OUT; c.lineWidth = 30; c.beginPath(); c.moveTo(x, by + 20); c.lineTo(x + 4, neck + GIR_LEGS - 14); c.stroke();
+    c.strokeStyle = col; c.lineWidth = 24; c.beginPath(); c.moveTo(x, by + 20); c.lineTo(x + 4, neck + GIR_LEGS - 14); c.stroke();
+    oval(c, x + 4, by + 150, 13, 11, col, 3); // ひざ
+    oval(c, x + 6, neck + GIR_LEGS - 8, 16, 10, '#4a2a22', 3); // ひづめ
+  }
+  // しっぽ (ゆらゆら)
+  c.save(); c.translate(-292, by - 18); c.rotate(0.35 + swish);
+  c.strokeStyle = OUT; c.lineWidth = 10; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 130); c.stroke();
+  c.strokeStyle = '#d79a3a'; c.lineWidth = 5; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 130); c.stroke();
+  oval(c, 0, 140, 9, 20, '#5a3020', 2.5);
+  c.restore();
+  oval(c, -150, by, 156, 80, radial(c, -150, by, 156, '#f8d78a', '#d9a23e'), 4.5, -0.12);
+  c.save(); c.beginPath(); c.ellipse(-150, by, 152, 76, -0.12, 0, TAU); c.clip();
+  c.fillStyle = '#a9622c';
+  for (const [x, y, rx, ry, r] of [[-60, -30, 26, 20, 0.3], [-118, -42, 30, 22, -0.2], [-182, -36, 28, 20, 0.5], [-246, -14, 24, 22, 0.1],
+    [-90, 12, 28, 24, -0.4], [-156, 6, 32, 24, 0.2], [-222, 26, 26, 22, -0.3], [-40, 30, 20, 18, 0.6], [-130, 58, 26, 16, 0], [-196, 66, 24, 14, 0.4]]) {
+    c.beginPath(); c.ellipse(x, by + y, rx, ry, r, 0, TAU); c.fill();
+  }
+  c.restore();
   // 首: 下へ伸びる。ふちは紫寄りの茶、地は黄、まだら模様は茶
   c.lineCap = 'round';
   c.strokeStyle = OUT; c.lineWidth = 46; c.beginPath(); c.moveTo(-8, 30); c.lineTo(-30, neck); c.stroke();

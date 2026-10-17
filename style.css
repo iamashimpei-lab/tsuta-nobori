@@ -165,4 +165,7 @@ h1 { position: relative; color: #ffe066;
 
 /* 面が増えてマップが画面に収まらない時は、面の一覧だけをスクロールし「もどる」は常に見せる (2026-10-17) */
 #stages { flex: 0 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; margin-top: 0; padding: 44px 16px 16px; }
-#map h2, #map .mapfoot { flex-shrink: 0; }
+#map h2, #map .mapfoot, #diffs { flex-shrink: 0; }
+#diffs { display: flex; gap: 10px; justify-content: center; margin: 0 0 10px; }
+#diffs button { font-size: 20px; padding: 8px 18px; min-width: 0; opacity: 0.6; }
+#diffs button.on { opacity: 1; outline: 4px solid #ffe27a; }

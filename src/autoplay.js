@@ -1,5 +1,5 @@
 // 自動プレイの頭脳: 本物の入力 (press / lift) だけで遊ぶ。node の大量テストと、ブラウザのデモの両方で使う
-import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, ROPE_RANGE, BODY, FOREST_W, AIR_DRAG, beePos, BEE_R, windAt, stormState, FLYERS, WET_SLIP, WET_MAX } from './game.js';
+import { createWorld, step, press, lift, anchorPos, grabPoint, grabbable, stars, STAGES, DT, G, BODY, FOREST_W, AIR_DRAG, beePos, BEE_R, windAt, stormState, FLYERS, WET_SLIP, WET_MAX } from './game.js';
 
 const hyp = Math.hypot;
 const RIDES = new Set(['bird', 'owl', 'vine', 'giraffe', 'trunk', 'sloth']);
@@ -68,7 +68,7 @@ function bestFrom(w, s, excl, minGainY) {
       if (a.kind === 'storm' && stormState(a, t + 0.8) === 'down') continue;
       const gp = grabPoint(w, a, t);
       const d = hyp(gp.x - x, gp.y - y);
-      if (d > ROPE_RANGE * 0.88 || d < 60) continue;
+      if (d > w.ropeRange * 0.88 || d < 60) continue;
       if (gp.y > minGainY) continue;
       // 枝の真下〜少し横でつかむと、その後よく振れる
       const lateral = Math.abs(gp.x - x) / d;
@@ -102,7 +102,7 @@ export function createBot(seed, jitter = 0.06) {
           if (b && (!best || b.score - k * 0.4 > best.score - best.k * 0.4)) best = { ...b, k, s };
         }
         if (best) {
-          const jr = gauss(R) * jitter, jp = gauss(R) * jitter;
+          const jr = gauss(R) * jitter * w.speed, jp = gauss(R) * jitter * w.speed; // ぶれは実時間なので世界の速さを掛ける
           st.plan = { releaseAt: best.s.t + jr, pressAt: best.s.t + best.tau - 0.09 + jp, target: best.a, aim: best.gp, aimErr: [gauss(R) * 25, gauss(R) * 25] };
           st.stuck = 0;
         } else { st.holdUntilT = w.t + 0.25; st.stuck = (st.stuck || 0) + 1; }
@@ -120,7 +120,7 @@ export function createBot(seed, jitter = 0.06) {
         else if (!b && m.vy > 400) {
           // 何でもいいので一番近い枝
           let near = null, nd = 1e9;
-          for (const a of w.anchors) { if (!grabbable(w, a)) continue; const g = grabPoint(w, a); const d = hyp(g.x - m.x, g.y - m.y); if (d < ROPE_RANGE * 0.9 && d < nd) { nd = d; near = g; } }
+          for (const a of w.anchors) { if (!grabbable(w, a)) continue; const g = grabPoint(w, a); const d = hyp(g.x - m.x, g.y - m.y); if (d < w.ropeRange * 0.9 && d < nd) { nd = d; near = g; } }
           if (near) press(w, near.x, near.y);
         }
       }
@@ -129,7 +129,7 @@ export function createBot(seed, jitter = 0.06) {
         if (w.holding) lift(w);
         const b = bestFrom(w, { t: w.t, x: m.x, y: m.y, vx: 0, vy: 0 }, null, 1e9);
         let near = null, nd = 1e9;
-        for (const a of w.anchors) { if (!grabbable(w, a)) continue; const g = grabPoint(w, a); const d = hyp(g.x - m.x, g.y - m.y); if (d < ROPE_RANGE * 0.9 && d < nd) { nd = d; near = g; } }
+        for (const a of w.anchors) { if (!grabbable(w, a)) continue; const g = grabPoint(w, a); const d = hyp(g.x - m.x, g.y - m.y); if (d < w.ropeRange * 0.9 && d < nd) { nd = d; near = g; } }
         if (near) press(w, near.x + gauss(R) * 25, near.y + gauss(R) * 25);
         w._standWait = w.t + 0.6 + R() * 0.6;
       }

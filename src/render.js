@@ -1,8 +1,9 @@
 // つたのぼり: 描画
 // 色の役割 (550 Atelier の手順より): サル = 暖色 / つかめる物 = 黄色い光の輪 / 危険 = ピンク・赤 / 背景 = 暗く彩度低め
 // 影は黒を混ぜず、色相を紫・青緑へずらして暗くする。一番明るいのはサル、次につかめる物、背景が一番暗い
-import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable, beePos, BEE_R, TRUNK_WIND, worldOf, windAt, stormState, STORM_P, STORM_GLOW, STORM_DOWN } from './game.js';
-import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite, drawGiraffe, drawElephant, drawSloth, drawBee, drawHive, drawOwl } from './art.js';
+import { WORLD_W, FOREST_W, TRUNK_GAP, trunkX, BODY, anchorPos, grabPoint, grabbable, beePos, BEE_R, TRUNK_WIND, worldOf, windAt, stormState, STORM_P, STORM_GLOW, STORM_DOWN, GIR_H } from './game.js';
+import { drawMonkey, drawToucan, drawLeaves, drawBranch, drawFruit, makeBackdrop, makeTrunk, frondSprite, drawGiraffe, GIR_LEGS, drawElephant, drawSloth, drawBee, drawHive, drawOwl } from './art.js';
+const GIR_NECK = 720; // キリンの頭が一番下の時の首の長さ。胴と足が画面に入るよう短めにする (2026-10-17 本人指摘「体がないのが気持ち悪い」)
 
 const FONT = '"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif';
 const PAL = {
@@ -377,13 +378,16 @@ export function createRenderer(canvas) {
     for (const a of w.anchors) {
       if (!ANIMALS.has(a.kind)) continue;
       const p = anchorPos(w, a);
-      if (!inView(p.y, a.kind === 'giraffe' ? 900 : 300)) continue;
+      if (!inView(p.y, a.kind === 'giraffe' ? GIR_NECK + GIR_H + GIR_LEGS + 200 : 300)) continue;
       const on = m.mode === 'hang' && m.anchor === a;
       const reach = Math.hypot(p.x - m.x, p.y - m.y) < 360;
       if (a.kind === 'giraffe') {
+        // 首の付け根は動かず、頭が上がるぶん首がのびる。足もとは奥の木の葉の上
+        const dir = a.id % 2 ? 1 : -1, footY = a.baseY + GIR_NECK + GIR_LEGS;
         ctx.save(); ctx.translate(p.x, p.y);
-        drawGiraffe(ctx, t, { dir: a.id % 2 ? 1 : -1, neck: 1100 + a.h, happy: on });
+        drawGiraffe(ctx, t, { dir, neck: GIR_NECK + a.h, happy: on });
         ctx.restore();
+        for (let k = 0; k < 5; k++) leafBlob(p.x + dir * (-300 + k * 80), footY + 20 + (k % 2) * 12, 58, a.id * 7 + k);
       } else if (a.kind === 'trunk') {
         const bx = p.x - a.dir * 166;
         const wx = trunkX(bx);
